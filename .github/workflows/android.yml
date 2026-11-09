@@ -20,6 +20,8 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      - name: Check the web app's looks match the Android sources
+        run: python3 tools/gen_web_data.py && git diff --exit-code web/data.js
       - name: Test, lint and build
         run: ./gradlew testDebugUnitTest lintDebug assembleRelease --no-daemon
       - name: Rename APK

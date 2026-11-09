@@ -1,0 +1,33 @@
+name: Deploy FUN CAM for iPhone (web app)
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["web/**", "tools/gen_web_data.py", "app/src/main/java/com/funcam/app/gl/Shaders.kt", "app/src/main/java/com/funcam/app/model/Cameras.kt", ".github/workflows/web.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate looks from the Android sources
+        run: python3 tools/gen_web_data.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4

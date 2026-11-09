@@ -3,7 +3,7 @@ type: project
 status: active
 repo: slaymore99/dazz-cam
 branch: claude/dreamy-gauss-27k7dh
-updated: 2026-11-09
+updated: 2026-11-10
 tags: [android, camera, kotlin, opengl, open-source]
 ---
 
@@ -20,6 +20,28 @@ source (MIT). Every camera is free, with no paywall.
   `docs/looks-contact-sheet.png`.
 - **Not yet tested on a real phone.** The user needs to install the APK and report anything
   that's wrong.
+
+## Update 2026-11-10
+- **Sideways preview fixed.** CameraX reports `hasCameraTransform() = true`: the
+  SurfaceTexture matrix already rotates (and mirrors the front camera), so the input shader
+  now applies 0°. Settings has a "Rotate preview" fallback (`rotfix` pref).
+- **UI decluttered:**
+  - The carousel shows icons only, with the selected name and category above it.
+  - A camera-name toast appears on switch.
+  - Zoom pills moved below the viewfinder, so nothing covers the picture.
+  - EXP/TEMP/TINT sit behind an Adjust button.
+  - Grid, import, Darkroom and Settings are in a ⋮ menu.
+- **iPhone test version** = a web app/PWA in `web/` (WebGL2 port).
+  - `tools/gen_web_data.py` generates `web/data.js` from Shaders.kt and Cameras.kt, and CI
+    checks they stay in sync.
+  - Deployed by `.github/workflows/web.yml` to GitHub Pages.
+  - The repo is **private**, so Pages needs GitHub Pro, or the user makes the repo public, or
+    hosts `web/` elsewhere.
+- **Native iOS app:** not possible from a Linux session. It needs a Mac and Xcode (or a
+  macOS CI runner) plus an Apple ID for signing / AltStore sideloading.
+- **Accuracy vs Dazz Cam:** the looks are NOT copied from Dazz. They're original approximations.
+  To match, we need reference photos (ideally side-by-side iPhone native vs Dazz camera
+  shots). Waiting on the user.
 
 ## Stack
 - Kotlin, Jetpack Compose, CameraX 1.4.1 (+ Camera2 interop for manual ISO/shutter), OpenGL

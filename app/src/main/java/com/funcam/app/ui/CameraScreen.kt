@@ -138,6 +138,9 @@ fun CameraScreen(vm: CamViewModel) {
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                 Viewfinder(vm)
             }
+            Box(Modifier.fillMaxWidth().height(46.dp), contentAlignment = Alignment.Center) {
+                if (!vm.recording) ZoomPills(vm, Modifier)
+            }
             AnimatedVisibility(adjustOpen, enter = fadeIn(), exit = fadeOut()) {
                 Column {
                     AdjustRow(vm, panel) { panel = it }
@@ -313,7 +316,7 @@ private fun Viewfinder(vm: CamViewModel) {
             }
             if (vm.recording) RecordingBadge(vm, Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
             else CameraNameToast(vm, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
-            if (vm.countdown == 0 && !vm.recording) ZoomPills(vm, Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
+
             val status = vm.multiProgress ?: if (vm.busy && !vm.recording && vm.countdown == 0) "Developing…" else null
             status?.let {
                 Text(
@@ -446,7 +449,7 @@ private fun ZoomPills(vm: CamViewModel, modifier: Modifier) {
     }
     if (stops.size < 2) return
     Row(
-        modifier.background(Color(0x66000000), RoundedCornerShape(50)).padding(3.dp),
+        modifier.background(FC.panel, RoundedCornerShape(50)).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically,
     ) {
         stops.forEach { z ->
@@ -454,7 +457,7 @@ private fun ZoomPills(vm: CamViewModel, modifier: Modifier) {
             val label = if (z < 1f) "%.1f".format(z) else "${z.toInt()}"
             Box(
                 Modifier.size(if (sel) 34.dp else 28.dp).clip(CircleShape)
-                    .background(if (sel) Color(0xCC000000) else Color.Transparent)
+                    .background(if (sel) FC.panel2 else Color.Transparent)
                     .clickable { vm.setZoomRatio(z) },
                 contentAlignment = Alignment.Center,
             ) {

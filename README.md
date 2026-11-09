@@ -44,6 +44,11 @@ Download `FUN-CAM.apk` from the latest GitHub Actions run (**Actions → Build F
 Artifacts**) or from a Release, then open it on your phone and allow installing from this
 source. You need Android 8.0 or later with OpenGL ES 3.
 
+## iPhone (test version)
+
+`web/` holds a web-app version of FUN CAM that runs in Safari and can be added to the Home
+Screen. It uses the same shader and cameras as the Android app. See `web/README.md`.
+
 ## Build
 
 ```bash
