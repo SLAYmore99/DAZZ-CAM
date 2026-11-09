@@ -140,6 +140,16 @@ fun SettingsSheet(vm: CamViewModel, onClose: () -> Unit) {
                 if (vm.caps.stabilization) "Steadier preview and video" else "Not supported on this camera",
                 vm.stabilize && vm.caps.stabilization,
             ) { vm.stabilize = it; vm.rebindForStabilization() }
+            Row(
+                Modifier.fillMaxWidth().clickable { vm.cyclePreviewRotation() }.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Rotate preview", color = FC.text, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Only if the viewfinder looks sideways on your phone", color = FC.dim, fontSize = 12.sp)
+                }
+                Text("${vm.previewRotationFix * 90}°", color = FC.amber, fontWeight = FontWeight.Bold)
+            }
             Spacer(Modifier.height(16.dp))
             Text(
                 "FUN CAM is free and open source (MIT). Every camera and accessory is included — no subscriptions, no ads, no tracking.",

@@ -34,9 +34,14 @@ class FilmRenderer {
     private var surfaceTexture: SurfaceTexture? = null
     private var bufW = 0
     private var bufH = 0
+    /** Total clockwise rotation the sensor buffer needs to be upright (from CameraX). */
     @Volatile private var rotation = 0
     val rotationDegrees: Int get() = rotation
+    /** Rotation our input shader still has to apply (the SurfaceTexture matrix may already hold the camera transform). */
+    @Volatile private var shaderRotation = 0
     @Volatile private var mirror = false
+    /** User calibration in 90° steps, a safety net for unusual devices. */
+    @Volatile var rotationFix = 0
 
     private var accA: Fbo? = null
     private var accB: Fbo? = null
@@ -102,7 +107,19 @@ class FilmRenderer {
             mirror = isFront
             bufW = res.width
             bufH = res.height
-            request.setTransformationInfoListener(executor) { info -> rotation = info.rotationDegrees }
+            request.setTransformationInfoListener(executor) { info ->
+                rotation = info.rotationDegrees
+                // When the camera writes its own transform into the SurfaceTexture (the usual case), the
+                // transform matrix already rotates (and, for the front camera, mirrors) the image upright.
+                if (info.hasCameraTransform()) {
+                    shaderRotation = 0
+                    mirror = false
+                } else {
+                    shaderRotation = info.rotationDegrees
+                    mirror = info.isMirroring
+                }
+                accFresh = true
+            }
             val old = surfaceTexture
             surfaceTexture = st
             camTex = tex
@@ -122,8 +139,10 @@ class FilmRenderer {
     }
 
     /** Upright camera frame size. */
-    private fun uprightSize(): Pair<Int, Int> =
-        if (rotation == 90 || rotation == 270) bufH to bufW else bufW to bufH
+    private fun uprightSize(): Pair<Int, Int> {
+        val r = (rotation + rotationFix * 90) % 360
+        return if (r == 90 || r == 270) bufH to bufW else bufW to bufH
+    }
 
     val cameraAspect: Float
         get() {
@@ -170,7 +189,7 @@ class FilmRenderer {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (prev === dst) blank else prev.tex)
             GLES30.glUniform1i(GLES30.glGetUniformLocation(inputProg, "uPrev"), 1)
             GLES30.glUniformMatrix4fv(GLES30.glGetUniformLocation(inputProg, "uSt"), 1, false, stMatrix, 0)
-            GLES30.glUniform1i(GLES30.glGetUniformLocation(inputProg, "uRot"), rotation)
+            GLES30.glUniform1i(GLES30.glGetUniformLocation(inputProg, "uRot"), (shaderRotation + rotationFix * 90) % 360)
             GLES30.glUniform1f(GLES30.glGetUniformLocation(inputProg, "uMirror"), if (mirror) 1f else 0f)
             val shutter = shutterSeconds
             val alpha = if (accFresh || prev === dst || shutter <= frameDt) 1f

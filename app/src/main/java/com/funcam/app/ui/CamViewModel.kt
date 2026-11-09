@@ -83,6 +83,16 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     var shutterSound by mutableStateOf(prefs.getBoolean("sound", true))
     var stabilize by mutableStateOf(prefs.getBoolean("stabilize", true))
     var recordAudio by mutableStateOf(prefs.getBoolean("audio", true))
+    /** Extra preview rotation in 90° steps — a fallback for devices that report orientation oddly. */
+    var previewRotationFix by mutableIntStateOf(prefs.getInt("rotfix", 0))
+        private set
+
+    fun cyclePreviewRotation() {
+        previewRotationFix = (previewRotationFix + 1) % 4
+        prefs.edit().putInt("rotfix", previewRotationFix).apply()
+        renderer.rotationFix = previewRotationFix
+        renderer.resetAccumulation()
+    }
 
     // capture status
     var busy by mutableStateOf(false)
@@ -120,6 +130,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     init {
         ratioIndex = prefs.getInt("ratio_" + recipe.id, 0)
         applyRecipeDefaults(recipe)
+        renderer.rotationFix = previewRotationFix
         sync()
     }
 
