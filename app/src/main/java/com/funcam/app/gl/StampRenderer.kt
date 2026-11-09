@@ -33,7 +33,7 @@ object StampRenderer {
                 else SimpleDateFormat("yyyy.MM.dd", Locale.US).format(d)
                 val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                    textSize = unit * 0.058f
+                    textSize = unit * 0.046f
                     textSkewX = -0.12f
                     letterSpacing = 0.06f
                     color = Color.rgb(255, 156, 52)

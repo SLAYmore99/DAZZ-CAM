@@ -107,7 +107,13 @@ vec3 borderColor(vec2 uv) {
     if (uBorder == 1) {
         b *= 0.965 + 0.035 * vnoise(uv * uRes * 0.35);
     } else if (uBorder == 2) {
-        // film rebate: dark base with sprocket-like windows in the long margins
+        // 120 film rebate: dark base, slightly fogged near the picture edge
+        vec2 c = clamp(uv, uImgRect.xy, uImgRect.zw);
+        float d = length((uv - c) * vec2(uRes.x / uRes.y, 1.0));
+        b += vec3(0.16, 0.11, 0.06) * exp(-d * 90.0) * (0.6 + 0.4 * vnoise(uv * 40.0));
+        b *= 0.9 + 0.1 * vnoise(uv * uRes * 0.2);
+    } else if (uBorder == 4) {
+        // 135 film rebate with sprocket windows in the long margins
         float hu = uv.x * uRes.x / uRes.y;
         bool top = uv.y > uImgRect.w;
         bool bottom = uv.y < uImgRect.y;
@@ -230,10 +236,10 @@ void main() {
             for (int k = 1; k <= 7; k++) {
                 float t = float(k) * 0.009;
                 float w = 1.0 - float(k) / 8.0;
-                s += (max(src(p + dir * t) - 0.82, 0.0) + max(src(p - dir * t) - 0.82, 0.0)) * w;
+                s += (max(src(p + dir * t) - 0.9, 0.0) + max(src(p - dir * t) - 0.9, 0.0)) * w;
             }
         }
-        c += s * uStar * 0.9;
+        c += s * uStar * 0.35;
     }
 
     if (uDouble > 0.0) {
@@ -249,7 +255,7 @@ void main() {
     if (uFlash > 0.0) {
         vec2 fc = (p - vec2(0.5, 0.55)) * vec2(uAspect, 1.0);
         float lit = exp(-dot(fc, fc) * 4.5);
-        c = c * (1.0 - 0.35 * uFlash) + lit * uFlash * (c * 0.9 + 0.12) * uFlashColor;
+        c = c * (1.0 - 0.3 * uFlash) + lit * uFlash * (c * 0.5 + 0.07) * uFlashColor;
     }
 
     c = mix(uLift, uGain, c);

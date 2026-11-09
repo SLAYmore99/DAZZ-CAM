@@ -33,7 +33,8 @@ data class FrameSpec(val outAspect: Float, val rect: FloatArray, val imgAspect: 
             val (side, top, bottom) = when (b) {
                 Border.NONE -> Triple(0f, 0f, 0f)
                 Border.INSTANT -> Triple(0.06f, 0.07f, 0.26f)
-                Border.FILM -> Triple(0.035f, 0.11f, 0.11f)
+                Border.FILM -> Triple(0.05f, 0.05f, 0.05f)
+                Border.SPROCKET -> Triple(0.03f, 0.12f, 0.12f)
                 Border.SLIDE -> Triple(0.16f, 0f, 0f)
             }
             if (b == Border.SLIDE) {
@@ -53,7 +54,7 @@ data class FrameSpec(val outAspect: Float, val rect: FloatArray, val imgAspect: 
 
         fun borderColor(b: Border): V3 = when (b) {
             Border.INSTANT -> V3(0.95f, 0.94f, 0.91f)
-            Border.FILM -> V3(0.07f, 0.06f, 0.055f)
+            Border.FILM, Border.SPROCKET -> V3(0.07f, 0.06f, 0.055f)
             Border.SLIDE -> V3(0.93f, 0.91f, 0.86f)
             Border.NONE -> V3.ZERO
         }

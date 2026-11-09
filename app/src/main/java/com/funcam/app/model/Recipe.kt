@@ -12,7 +12,7 @@ enum class Body {
 }
 
 /** Frame drawn around the image. Ids match the shader's uBorder. */
-enum class Border(val id: Int) { NONE(0), INSTANT(1), FILM(2), SLIDE(3) }
+enum class Border(val id: Int) { NONE(0), INSTANT(1), FILM(2), SLIDE(3), SPROCKET(4) }
 
 /** How many frames a single shutter press produces and how they are combined. */
 enum class CaptureMode { SINGLE, HALF, QUAD, WIGGLE }

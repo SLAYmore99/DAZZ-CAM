@@ -115,7 +115,7 @@ object Cameras {
             Look(exposure = 0.1f, contrast = 1.1f, saturation = 1.1f, cross = 0.8f, fade = 0.08f,
                 grain = 0.5f, grainSize = 1.4f, vignette = 0.35f, leak = 0.55f,
                 leakColor = V3(1f, 0.2f, 0.55f), shadowTint = V3(0.0f, 0.03f, 0.05f)),
-            ratios = listOf(r23, r34),
+            ratios = listOf(r32, r23, r34), border = Border.SPROCKET,
         ),
 
         // ---------------- Vintage 120 / toy ----------------

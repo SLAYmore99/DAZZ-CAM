@@ -301,7 +301,10 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
                         val first = doubleFirst
                         if (first == null) {
                             doubleFirst = raw
-                            renderer.setDoubleExposure(raw)
+                            val ghostScale = minOf(1f, 1440f / maxOf(raw.width, raw.height))
+                            renderer.setDoubleExposure(
+                                Bitmap.createScaledBitmap(raw, (raw.width * ghostScale).toInt(), (raw.height * ghostScale).toInt(), true)
+                            )
                             multiProgress = "1/2"
                             message = "Double exposure: take the second shot"
                             return

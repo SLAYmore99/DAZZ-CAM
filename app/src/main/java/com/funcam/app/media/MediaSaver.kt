@@ -89,7 +89,8 @@ object MediaSaver {
         resolver.openInputStream(uri)?.use {
             val exif = ExifInterface(it)
             rotation = exif.rotationDegrees
-            taken = exif.dateTimeOriginal ?: exif.dateTime
+            val raw = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL) ?: exif.getAttribute(ExifInterface.TAG_DATETIME)
+            taken = raw?.let { s -> runCatching { SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).parse(s)?.time }.getOrNull() }
         }
         val out = if (rotation != 0) {
             Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(rotation.toFloat()) }, true)
