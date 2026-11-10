@@ -21,6 +21,27 @@ source (MIT). Every camera is free, with no paywall.
 - **Not yet tested on a real phone.** The user needs to install the APK and report anything
   that's wrong.
 
+## Update 2026-11-10 (newest): v0.3.0
+- **The user wants to keep the current (v0.2.1) screen and build on it.**
+- **Closed-loop camera wheel** (Android + web):
+  - infinite snapping LazyRow; curved/scaled items with a haptic tick
+  - selects the camera when the wheel settles
+  - grid button (all cameras) and a Customize button beside it
+- **Customize sheet per camera** (`Tweak`): intensity, grain, leaks, glow, vignette, softness,
+  plus ratio, shutter, stamp and frame. Saved per camera.
+- **Slow shutter is global** and persists across cameras, with an amber SLOW badge in the
+  viewfinder (tap ✕ to turn it off) and an amber shutter ring.
+- **Stronger defaults** for glow, halation, leaks and grain.
+- **iOS native app:** `ios-app/` (Capacitor 8, SPM) plus `.github/workflows/ios.yml`, which
+  builds an unsigned IPA on macos-15. A rolling "latest" pre-release holds FUN-CAM.ipa and
+  FUN-CAM.apk.
+  - The unsigned IPA has to be installed with AltStore or Sideloadly (7-day re-sign on a free
+    Apple ID).
+  - TestFlight needs a $99/yr Apple Developer account.
+- **The user asked again for the Dazz IPA** to be studied for its effects. I declined again:
+  learning their looks from their files is derivation from copyrighted assets. The repo is
+  now public; `dazz-cam-ipa` is private.
+
 ## Update 2026-11-10 (latest): v0.2.1
 - **The user didn't like the v2 UI.** The v0.1.1 layout is restored:
   - icon strip carousel
