@@ -20,6 +20,11 @@ const S = {
   acc: { fisheyeW: false, fisheyeC: false, prism: false, star: false, nd: false, doubleExposure: false, lightLeaks: saved.leaks ?? true, gelName: 'WHITE' },
   busy: false, recording: false, panel: null, adjustOpen: false,
 };
+const TW0 = { intensity: 1, grain: 1, leaks: 1, glow: 1, vignette: 1, soft: 1 };
+const tweaks = JSON.parse(localStorage.getItem('funcam_tweaks') || '{}');
+const tweakOf = id => Object.assign({}, TW0, tweaks[id] || {});
+const isDefaultTweak = t => Object.keys(TW0).every(k => Math.abs(t[k] - TW0[k]) < 1e-6);
+const saveTweak = (id, t) => { tweaks[id] = t; localStorage.setItem('funcam_tweaks', JSON.stringify(tweaks)); };
 const persist = () => localStorage.setItem('funcam', JSON.stringify({
   recipe: S.recipe.id, ratioIdx: S.ratioIdx, grid: S.grid, stampOn: S.stampOn, borderOn: S.borderOn,
   sound: S.sound, audio: S.audio, leaks: S.acc.lightLeaks, instantFrame: S.instantFrame,
@@ -27,7 +32,7 @@ const persist = () => localStorage.setItem('funcam', JSON.stringify({
 const ratio = () => { const r = S.recipe.ratios; const [w, h] = r[Math.min(S.ratioIdx[S.recipe.id] || 0, r.length - 1)]; return { w, h, v: w / h, label: `${w}:${h}` }; };
 const params = (flashFired = S.flash && !S.recipe.isVideo, recipe = S.recipe) => ({
   recipe, borderOn: S.borderOn, stampOn: S.stampOn, exposure: S.exposure, temp: S.temp, tint: S.tint, flashFired, instantFrame: S.instantFrame,
-  acc: { ...S.acc, gel: GELS[S.acc.gelName] },
+  tweak: tweakOf(recipe.id), acc: { ...S.acc, gel: GELS[S.acc.gelName] },
 });
 
 let film, video, stream;
@@ -104,10 +109,14 @@ function sync() {
   $('#bAdjust').classList.toggle('on', S.adjustOpen || !!(S.exposure || S.temp || S.tint));
   $('#bAcc').classList.toggle('on', ['fisheyeW', 'fisheyeC', 'prism', 'star', 'nd', 'doubleExposure'].some(k => S.acc[k]));
   $('#camName').textContent = S.recipe.name;
-  $('#camCat').textContent = '  ·  ' + CAT[S.recipe.category];
+  $('#camCat').textContent = CAT[S.recipe.category];
   $('#shutter').className = (S.recipe.isVideo ? 'video' : '') + (S.recording ? ' recording' : '') + (S.busy && !S.recording ? ' busy' : '');
   $('#mGrid').textContent = S.grid ? 'Hide grid' : 'Show grid';
-  document.querySelectorAll('#strip button').forEach(b => b.classList.toggle('sel', b.dataset.id === S.recipe.id));
+  $('#bTune').classList.toggle('on', !isDefaultTweak(tweakOf(S.recipe.id)));
+  const slow = S.shutter > 1 / 30;
+  $('#slow').style.display = slow ? 'block' : 'none';
+  $('#slow').textContent = slow ? `⏱ SLOW ${shutterLabel(S.shutter)}  ✕` : '';
+  $('#shutter').classList.toggle('slow', slow);
   renderZoom();
   renderAdjust();
 }
@@ -133,24 +142,69 @@ function selectRecipe(r) {
   resetMulti();
   S.recipe = r;
   S.flash = r.flashDefault;
-  if (r.id === 'dreamblur') { S.shutter = 1 / 4; S.fps = 12; } else { S.shutter = 0; S.fps = r.videoFps; }
+  // shutter stays as you set it across cameras (the SLOW badge shows when it's on)
+  if (r.id === 'dreamblur') { S.shutter = 1 / 4; S.fps = 12; } else { S.fps = r.videoFps; }
   persist(); sync(); toast();
   film?.resetAccumulation();
-  const b = document.querySelector(`#strip button[data-id="${r.id}"]`);
-  b?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  wheelTo(r.id);
 }
+const stepCamera = dir => { const i = CAMERAS.findIndex(c => c.id === S.recipe.id); selectRecipe(CAMERAS[(i + dir + CAMERAS.length) % CAMERAS.length]); };
 
-function buildStrip() {
-  const strip = $('#strip');
-  for (const r of CAMERAS) {
-    const b = document.createElement('button');
-    b.dataset.id = r.id; b.setAttribute('aria-label', r.name);
-    const c = document.createElement('canvas'); c.width = 108; c.height = 78;
-    drawCameraIcon(c, r);
+// ------------------------------------------------------------------ closed-loop camera wheel
+const ITEM = 66;
+let wheelIdle, wheelCentre = -1, wheelBusy = false;
+function buildWheel() {
+  const wheel = $('#wheel'), n = CAMERAS.length;
+  const pad = document.createElement('div'); pad.className = 'pad';
+  for (let copy = 0; copy < 3; copy++) for (let i = 0; i < n; i++) {
+    const r = CAMERAS[i], b = document.createElement('button');
+    b.dataset.i = copy * n + i; b.dataset.id = r.id; b.setAttribute('aria-label', r.name);
+    const c = document.createElement('canvas'); c.width = 116; c.height = 84; drawCameraIcon(c, r);
     b.appendChild(c);
-    b.onclick = () => selectRecipe(r);
-    strip.appendChild(b);
+    b.onclick = () => wheel.scrollTo({ left: (copy * n + i) * ITEM, behavior: 'smooth' });
+    wheel.appendChild(b);
   }
+  const sidePad = () => { const p = (wheel.clientWidth - ITEM) / 2; wheel.style.paddingLeft = wheel.style.paddingRight = p + 'px'; };
+  sidePad(); window.addEventListener('resize', sidePad);
+  wheel.scrollLeft = (n + CAMERAS.findIndex(c => c.id === S.recipe.id)) * ITEM;
+  wheel.addEventListener('scroll', () => {
+    requestAnimationFrame(paintWheel);
+    clearTimeout(wheelIdle);
+    wheelIdle = setTimeout(settleWheel, 140);
+  }, { passive: true });
+  paintWheel();
+}
+function paintWheel() {
+  const wheel = $('#wheel'), n = CAMERAS.length;
+  const pos = wheel.scrollLeft / ITEM;
+  const centre = Math.round(pos);
+  wheel.querySelectorAll('button').forEach(b => {
+    const d = Math.max(-1, Math.min(1, (+b.dataset.i - pos) / 3.2)), ad = Math.abs(d);
+    b.style.transform = `translateY(${ad * ad * 34}px) rotate(${d * 18}deg) scale(${1.15 - 0.55 * ad})`;
+    b.style.opacity = 1 - 0.65 * ad;
+  });
+  if (centre !== wheelCentre) {
+    wheelCentre = centre;
+    const r = CAMERAS[((centre % n) + n) % n];
+    $('#camName').textContent = r.name; $('#camCat').textContent = CAT[r.category];
+    navigator.vibrate?.(4);
+  }
+}
+function settleWheel() {
+  const wheel = $('#wheel'), n = CAMERAS.length;
+  const centre = Math.round(wheel.scrollLeft / ITEM), idx = ((centre % n) + n) % n;
+  // jump back to the middle copy so the loop never ends
+  if (centre < n || centre >= 2 * n) { wheel.scrollLeft = (n + idx) * ITEM; paintWheel(); }
+  const r = CAMERAS[idx];
+  if (r.id !== S.recipe.id) { wheelBusy = true; selectRecipe(r); wheelBusy = false; }
+}
+function wheelTo(id) {
+  if (wheelBusy) return;
+  const wheel = $('#wheel'), n = CAMERAS.length;
+  const cur = Math.round(wheel.scrollLeft / ITEM), target = CAMERAS.findIndex(c => c.id === id);
+  let d = target - ((cur % n) + n) % n;
+  if (d > n / 2) d -= n; if (d < -n / 2) d += n;
+  if (d) wheel.scrollTo({ left: (cur + d) * ITEM, behavior: 'smooth' });
 }
 
 function buildPicker() {
@@ -224,6 +278,50 @@ function buildSettings() {
     toggleRow('Shutter sound', 'Click when you take a photo', () => S.sound, v => (S.sound = v)),
     toggleRow('Record audio', 'Microphone sound in videos', () => S.audio, v => (S.audio = v)),
   );
+}
+
+// ------------------------------------------------------------------ customize (per camera)
+function openTune() {
+  const r = S.recipe, list = $('#sTune .list');
+  $('#tuneTitle').textContent = `Customize ${r.name}`;
+  list.innerHTML = '';
+  const t = tweakOf(r.id);
+  const slider = (key, title, sub, max) => {
+    const d = document.createElement('div'); d.className = 'tw';
+    d.innerHTML = `<div class="row"><b>${title}</b><small>${sub}</small><em></em></div><input type="range" min="0" max="${max}" step="0.05">`;
+    const inp = d.querySelector('input'), em = d.querySelector('em');
+    inp.value = t[key]; em.textContent = Math.round(t[key] * 100) + '%';
+    inp.oninput = () => { t[key] = +inp.value; em.textContent = Math.round(t[key] * 100) + '%'; saveTweak(r.id, t); film.params = params(); };
+    inp.onchange = () => sync();
+    list.appendChild(d);
+  };
+  slider('intensity', 'Intensity', 'How strong the whole look is', 1.5);
+  slider('grain', 'Grain', 'Film grain / sensor noise', 2);
+  slider('leaks', 'Light leaks', 'Warm leaks from the edges', 2);
+  slider('glow', 'Glow', 'Bloom and halation', 2);
+  slider('vignette', 'Vignette', 'Dark corners', 2);
+  slider('soft', 'Softness', 'Soft corners / diffusion', 2);
+  const pills = (title, items, isSel, onPick) => {
+    const h = document.createElement('b'); h.textContent = title; h.style.cssText = 'display:block;margin-top:10px';
+    const row = document.createElement('div'); row.className = 'pills';
+    items.forEach(([label, v]) => {
+      const b = document.createElement('button'); b.textContent = label; b.className = isSel(v) ? 'sel' : '';
+      b.onclick = () => { onPick(v); row.querySelectorAll('button').forEach((x, i) => x.className = isSel(items[i][1]) ? 'sel' : ''); };
+      row.appendChild(b);
+    });
+    list.append(h, row);
+  };
+  if (r.ratios.length > 1) pills('Aspect ratio', r.ratios.map(([w, h], i) => [w === 239 ? '2.39' : `${w}:${h}`, i]),
+    i => (S.ratioIdx[r.id] || 0) === i, i => { S.ratioIdx[r.id] = i; resetMulti(); persist(); sync(); });
+  pills('Shutter', [0, 1 / 15, 1 / 8, 1 / 4, 1 / 2, 1].map(v => [v ? shutterLabel(v) : 'AUTO', v]),
+    v => S.shutter === v, v => { S.shutter = v; film.resetAccumulation(); sync(); });
+  list.append(
+    toggleRow('Date stamp', 'Burn the date into shots', () => S.stampOn, v => (S.stampOn = v)),
+    toggleRow('Frame', 'Film frame / instant border', () => S.borderOn, v => (S.borderOn = v)),
+  );
+  const desc = document.createElement('p'); desc.className = 'sub'; desc.textContent = r.description; list.appendChild(desc);
+  $('#tuneReset').onclick = () => { saveTweak(r.id, { ...TW0 }); film.params = params(); sync(); openTune(); };
+  openSheet($('#sTune'));
 }
 
 // ------------------------------------------------------------------ adjust panel
@@ -536,6 +634,8 @@ function wire() {
   $('#scrim').onclick = closeSheets;
   const openPicker = buildPicker();
   $('#bAll').onclick = openPicker;
+  $('#bTune').onclick = openTune;
+  $('#slow').onclick = () => { S.shutter = 0; film.resetAccumulation(); sync(); };
   $('#thumb').onclick = openRoll;
   $('#flip').onclick = async () => { if (S.recording) return; S.front = !S.front; S.zoom = 1; await openCamera(); sync(); };
   $('#shutter').onclick = () => {
@@ -580,6 +680,6 @@ async function start() {
   }
 }
 
-buildStrip(); buildAcc(); buildSettings(); wire(); sync();
+buildWheel(); buildAcc(); buildSettings(); wire(); sync();
 $('#bStart').onclick = start;
 if (navigator.serviceWorker && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

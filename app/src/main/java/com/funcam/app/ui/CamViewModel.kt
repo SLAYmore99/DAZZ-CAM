@@ -33,6 +33,7 @@ import com.funcam.app.model.Accessories
 import com.funcam.app.model.CaptureMode
 import com.funcam.app.model.Cameras
 import com.funcam.app.model.InstantFrame
+import com.funcam.app.model.Tweak
 import com.funcam.app.model.Ratio
 import com.funcam.app.model.Recipe
 import com.funcam.app.video.LiveRecorder
@@ -84,6 +85,19 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     var shutterSound by mutableStateOf(prefs.getBoolean("sound", true))
     var stabilize by mutableStateOf(prefs.getBoolean("stabilize", true))
     var recordAudio by mutableStateOf(prefs.getBoolean("audio", true))
+    /** Per-camera customisation for the current camera. */
+    var tweak by mutableStateOf(Tweak.decode(prefs.getString("tw_" + recipe.id, null)))
+        private set
+
+    fun updateTweak(t: Tweak) {
+        tweak = t
+        prefs.edit().putString("tw_" + recipe.id, t.encode()).apply()
+        sync()
+    }
+
+    /** True when the shutter is slower than a normal frame: motion trails / long exposure. */
+    val slowShutter: Boolean get() = shutter > 1 / 30f
+
     var instantFrame by mutableStateOf(runCatching { InstantFrame.valueOf(prefs.getString("iframe", "WHITE")!!) }.getOrDefault(InstantFrame.WHITE))
     /** Extra preview rotation in 90° steps — a fallback for devices that report orientation oddly. */
     var previewRotationFix by mutableIntStateOf(prefs.getInt("rotfix", 0))
@@ -176,6 +190,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         if (r.id == recipe.id) return
         resetMulti()
         recipe = r
+        tweak = Tweak.decode(prefs.getString("tw_" + r.id, null))
         ratioIndex = prefs.getInt("ratio_" + r.id, 0).coerceIn(0, r.ratios.lastIndex)
         prefs.edit().putString("recipe", r.id).apply()
         applyRecipeDefaults(r)
@@ -194,7 +209,8 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     private fun applyRecipeDefaults(r: Recipe) {
         when (r.id) {
             "dreamblur" -> { shutter = 1 / 4f; fps = 12; iso = 160 }
-            else -> { shutter = 0f; iso = 0; fps = r.videoFps }
+            // shutter / ISO stay as you set them across cameras (the SLOW badge shows when it's on)
+            else -> { fps = r.videoFps }
         }
         applyManual()
     }
@@ -255,6 +271,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     fun params(flashFired: Boolean = flashOn, r: Recipe = recipe, rt: Ratio = ratio) = RenderParams(
         recipe = r, ratio = rt, acc = acc, borderOn = borderOn, stampOn = stampOn,
         exposure = exposure, temp = temp, tint = tint, flashFired = flashFired, instantFrame = instantFrame,
+        tweak = if (r.id == recipe.id) tweak else Tweak.decode(prefs.getString("tw_" + r.id, null)),
     )
 
     /** Push the current look to the live renderer. */

@@ -261,19 +261,21 @@ export class FilmGL {
   /** The four-pass film look (port of FilmPipeline.render). */
   render(src, srcW, srcH, srcCrop, P, spec, outW, outH, bindTarget, time, seed, leakSeed, flipY, stampTex, marksTex, tex2 = null, tex2Crop = null) {
     const gl = this.gl, L = Object.assign({}, LOOK_DEFAULTS, P.recipe.look), a = P.acc;
+    const t = Object.assign({ intensity: 1, grain: 1, leaks: 1, glow: 1, vignette: 1, soft: 1 }, P.tweak || {}), k = t.intensity;
+    const dev = (v, n) => n + (v - n) * k, dev3 = (v, n) => v.map(x => dev(x, n));
     const imgW = Math.max(16, Math.round(outW * (spec.rect[2] - spec.rect[0]))), imgH = Math.max(16, Math.round(outH * (spec.rect[3] - spec.rect[1])));
     this.ensure(imgW, imgH);
     const g = this.gradeF, qa = this.qa, qb = this.qb;
     const G = this.gradeP; g.bind(); G.use();
     G.tex('uSrc', 0, gl.TEXTURE_2D, src); G.v4('uSrcCrop', srcCrop); G.v2('uSrcTexel', 1 / srcW, 1 / srcH);
     G.tex('uSrc2', 1, gl.TEXTURE_2D, tex2 || this.blank); G.v4('uSrc2Crop', tex2Crop || [0, 0, 1, 1]); G.f('uDouble', tex2 ? 1 : 0);
-    G.tex('uLut', 2, gl.TEXTURE_3D, (L.lut && this.luts[L.lut]) || this.lutIdentity); G.f('uLutMix', L.lut ? L.lutMix : 0);
+    G.tex('uLut', 2, gl.TEXTURE_3D, (L.lut && this.luts[L.lut]) || this.lutIdentity); G.f('uLutMix', L.lut ? Math.min(1, Math.max(0, L.lutMix * k)) : 0);
     G.f('uAspect', spec.imgAspect); G.f('uTime', time); G.ui('uSeed', seed);
-    G.f('uExposure', L.exposure + P.exposure - (a.nd ? 1.3 : 0)); G.f('uTemp', L.temp + P.temp); G.f('uTint', L.tint + P.tint);
-    G.f('uContrast', L.contrast); G.f('uSaturation', L.saturation); G.f('uFade', L.fade); G.f('uMono', L.mono);
-    G.v3('uLift', L.lift); G.v3('uGain', L.gain); G.v3('uShadowTint', L.shadowTint); G.v3('uHighTint', L.highTint);
+    G.f('uExposure', dev(L.exposure, 0) + P.exposure - (a.nd ? 1.3 : 0)); G.f('uTemp', dev(L.temp, 0) + P.temp); G.f('uTint', dev(L.tint, 0) + P.tint);
+    G.f('uContrast', dev(L.contrast, 1)); G.f('uSaturation', Math.max(0, dev(L.saturation, 1))); G.f('uFade', Math.max(0, dev(L.fade, 0))); G.f('uMono', L.mono);
+    G.v3('uLift', dev3(L.lift, 0)); G.v3('uGain', dev3(L.gain, 1)); G.v3('uShadowTint', dev3(L.shadowTint, 0)); G.v3('uHighTint', dev3(L.highTint, 0));
     G.f('uFlash', P.flashFired ? L.flash : 0); G.v3('uFlashColor', a.gel || [1, 1, 1]);
-    G.i('uFisheye', a.fisheyeC ? 2 : a.fisheyeW ? 1 : 0); G.f('uChroma', L.chroma); G.f('uPixel', L.pixel); G.f('uSharpen', L.sharpen);
+    G.i('uFisheye', a.fisheyeC ? 2 : a.fisheyeW ? 1 : 0); G.f('uChroma', L.chroma * k); G.f('uPixel', L.pixel); G.f('uSharpen', L.sharpen);
     G.f('uPrism', a.prism ? 1 : 0); G.f('uVhs', L.vhs); G.f('uWeave', L.weave);
     this.quad();
     qa.bind(); this.downP.use(); this.downP.tex('uSrc', 0, gl.TEXTURE_2D, g.tex); this.downP.v2('uTexel', 1 / qa.width, 1 / qa.height); this.quad();
@@ -289,9 +291,9 @@ export class FilmGL {
     C.v2('uRes', outW, outH); C.f('uFlipY', flipY ? 1 : 0); C.v4('uImgRect', spec.rect); C.f('uAspect', spec.imgAspect);
     C.i('uBorder', BORDER_ID[spec.border]); C.v3('uFrameColor', frameColor(spec.border, P.instantFrame));
     C.f('uTime', time); C.ui('uSeed', seed); C.ui('uLeakSeed', leakSeed);
-    C.f('uBloom', L.bloom); C.f('uHalation', L.halation); C.v3('uHalationColor', L.halationColor); C.f('uSoft', L.soft); C.f('uSoftAll', L.softAll);
-    C.f('uStar', a.star ? 1 : 0); C.f('uVignette', L.vignette); C.f('uLeak', a.lightLeaks ? L.leak : 0); C.f('uLeakAnim', P.recipe.isVideo ? 1 : 0);
-    C.v3('uLeakColor', L.leakColor); C.f('uGrain', L.grain); C.f('uGrainSize', L.grainSize); C.f('uNoise', L.noise);
+    C.f('uBloom', L.bloom * t.glow); C.f('uHalation', L.halation * t.glow); C.v3('uHalationColor', L.halationColor); C.f('uSoft', L.soft * t.soft); C.f('uSoftAll', L.softAll * t.soft);
+    C.f('uStar', a.star ? 1 : 0); C.f('uVignette', Math.min(1.2, L.vignette * t.vignette)); C.f('uLeak', a.lightLeaks ? L.leak * t.leaks : 0); C.f('uLeakAnim', P.recipe.isVideo ? 1 : 0);
+    C.v3('uLeakColor', L.leakColor); C.f('uGrain', L.grain * t.grain); C.f('uGrainSize', L.grainSize); C.f('uNoise', L.noise);
     C.f('uScan', L.scan); C.f('uVhs', L.vhs); C.f('uFlicker', L.flicker); C.f('uDust', L.dust); C.f('uInterlace', L.interlace);
     this.quad();
   }

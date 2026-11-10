@@ -46,6 +46,10 @@ import com.funcam.app.model.Accessories
 import com.funcam.app.model.Cameras
 import com.funcam.app.model.Category
 import com.funcam.app.model.FlashGel
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.width
+import com.funcam.app.model.shutterLabel
+import com.funcam.app.model.Tweak
 import com.funcam.app.model.InstantFrame
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -184,6 +188,81 @@ fun ToggleRow(title: String, sub: String, value: Boolean, onChange: (Boolean) ->
         Switch(
             checked = value, onCheckedChange = onChange,
             colors = SwitchDefaults.colors(checkedTrackColor = FC.amber, checkedThumbColor = Color.Black),
+        )
+    }
+}
+
+/** Quick per-camera customisation, opened from the "Customize" button by the camera wheel. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomizeSheet(vm: CamViewModel, onClose: () -> Unit) {
+    val t = vm.tweak
+    val r = vm.recipe
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = FC.bg) {
+        Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 26.dp).verticalScroll(rememberScrollState())) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CameraIcon(r, width = 56.dp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Customize ${r.name}", color = FC.text, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Text("Saved for this camera only", color = FC.dim, fontSize = 12.sp)
+                }
+                Text(
+                    "RESET", color = if (t.isDefault) FC.dim else FC.amber, fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { vm.updateTweak(Tweak()) }.padding(8.dp),
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            TweakSlider("Intensity", "How strong the whole look is", t.intensity, 0f, 1.5f) { vm.updateTweak(t.copy(intensity = it)) }
+            TweakSlider("Grain", "Film grain / sensor noise", t.grain, 0f, 2f) { vm.updateTweak(t.copy(grain = it)) }
+            TweakSlider("Light leaks", "Warm leaks bleeding in from the edges", t.leaks, 0f, 2f) { vm.updateTweak(t.copy(leaks = it)) }
+            TweakSlider("Glow", "Bloom and red halation around highlights", t.glow, 0f, 2f) { vm.updateTweak(t.copy(glow = it)) }
+            TweakSlider("Vignette", "Dark corners", t.vignette, 0f, 2f) { vm.updateTweak(t.copy(vignette = it)) }
+            TweakSlider("Softness", "Soft corners / dreamy diffusion", t.soft, 0f, 2f) { vm.updateTweak(t.copy(soft = it)) }
+
+            if (r.ratios.size > 1) {
+                Text("Aspect ratio", color = FC.text, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp))
+                Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    r.ratios.forEach { ratio ->
+                        val sel = ratio == vm.ratio
+                        Text(
+                            ratio.label, color = if (sel) Color.Black else FC.text, fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (sel) FC.amber else FC.panel2)
+                                .clickable { while (vm.ratio != ratio) vm.cycleRatio() }.padding(horizontal = 12.dp, vertical = 7.dp),
+                        )
+                    }
+                }
+            }
+            Text("Shutter", color = FC.text, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0f, 1 / 15f, 1 / 8f, 1 / 4f, 1 / 2f, 1f).forEach { s ->
+                    val sel = vm.shutter == s
+                    Text(
+                        if (s == 0f) "AUTO" else shutterLabel(s), color = if (sel) Color.Black else FC.text, fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (sel) FC.amber else FC.panel2)
+                            .clickable { vm.setManualValues(shutter = s) }.padding(horizontal = 10.dp, vertical = 7.dp),
+                    )
+                }
+            }
+            ToggleRow("Date stamp", "Burn the date into this camera's shots", vm.stampOn) { vm.stampOn = it; vm.saveSettings() }
+            ToggleRow("Frame", "Show the film frame / instant border", vm.borderOn) { vm.borderOn = it; vm.saveSettings() }
+            Text(r.description, color = FC.dim, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun TweakSlider(title: String, sub: String, value: Float, min: Float, max: Float, onChange: (Float) -> Unit) {
+    Column(Modifier.padding(vertical = 2.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(title, color = FC.text, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.width(8.dp))
+            Text(sub, color = FC.dim, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 1)
+            Text("${(value * 100).toInt()}%", color = FC.amber, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        androidx.compose.material3.Slider(
+            value = value, onValueChange = { onChange(((it * 20).roundToInt() / 20f)) }, valueRange = min..max,
+            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = FC.amber, activeTrackColor = FC.amber),
         )
     }
 }

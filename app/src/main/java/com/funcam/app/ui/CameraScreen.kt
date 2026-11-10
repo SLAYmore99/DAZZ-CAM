@@ -42,6 +42,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Apps
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.filled.ShutterSpeed
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.FlashOff
@@ -114,6 +119,7 @@ fun CameraScreen(vm: CamViewModel) {
     var showDarkroom by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(Panel.NONE) }
     var adjustOpen by remember { mutableStateOf(false) }
+    var showTune by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.bindCamera(lifecycleOwner) }
     DisposableEffect(lifecycleOwner) {
@@ -147,7 +153,7 @@ fun CameraScreen(vm: CamViewModel) {
                     if (panel != Panel.NONE) AdjustSlider(vm, panel)
                 }
             }
-            CameraCarousel(vm, onAll = { showPicker = true })
+            CameraWheel(vm, onAll = { showPicker = true }, onTune = { showTune = true })
             BottomBar(
                 vm,
                 onShutter = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); vm.onShutter() },
@@ -174,6 +180,7 @@ fun CameraScreen(vm: CamViewModel) {
         if (showAcc) AccessoriesSheet(vm) { showAcc = false }
         if (showSettings) SettingsSheet(vm) { showSettings = false }
         if (showDarkroom) Darkroom(vm) { showDarkroom = false }
+        if (showTune) CustomizeSheet(vm) { showTune = false }
     }
 }
 
@@ -314,6 +321,7 @@ private fun Viewfinder(vm: CamViewModel) {
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
+            if (vm.slowShutter) SlowBadge(vm, Modifier.align(Alignment.TopStart).padding(10.dp))
             if (vm.recording) RecordingBadge(vm, Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
             else CameraNameToast(vm, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
 
@@ -326,6 +334,22 @@ private fun Viewfinder(vm: CamViewModel) {
                 )
             }
         }
+    }
+}
+
+/** Always-visible reminder that slow shutter is on (tap to turn it off). */
+@Composable
+private fun SlowBadge(vm: CamViewModel, modifier: Modifier) {
+    Row(
+        modifier.clip(RoundedCornerShape(12.dp)).background(FC.amber).clickable { vm.setManualValues(shutter = 0f) }
+            .padding(horizontal = 9.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.ShutterSpeed, null, tint = Color.Black, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("SLOW ${shutterLabel(vm.shutter)}", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.width(6.dp))
+        Text("✕", color = Color.Black.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -467,42 +491,101 @@ private fun ZoomPills(vm: CamViewModel, modifier: Modifier) {
     }
 }
 
+/**
+ * Closed-loop camera wheel: swipe left/right, it snaps one camera at a time and wraps around forever.
+ * The camera switches when the wheel settles; each step gives a haptic tick.
+ */
 @Composable
-private fun CameraCarousel(vm: CamViewModel, onAll: () -> Unit) {
+private fun CameraWheel(vm: CamViewModel, onAll: () -> Unit, onTune: () -> Unit) {
     val list = Cameras.all
-    val state = rememberLazyListState()
-    LaunchedEffect(vm.recipe.id) {
-        val i = list.indexOfFirst { it.id == vm.recipe.id }
-        if (i >= 0) state.animateScrollToItem((i - 2).coerceAtLeast(0))
-    }
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(vm.recipe.name.uppercase(), color = FC.amber, fontWeight = FontWeight.Black, fontSize = 13.sp)
-            Text("  ·  ${vm.recipe.category.label}", color = FC.dim, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            Text(
-                "ALL CAMERAS", color = FC.text, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onAll)
-                    .background(FC.panel2).padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+    val n = list.size
+    val haptics = LocalHapticFeedback.current
+    val base = remember { (Int.MAX_VALUE / 2) - (Int.MAX_VALUE / 2) % n }
+    val start = base + list.indexOfFirst { it.id == vm.recipe.id }.coerceAtLeast(0)
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = start)
+    val scope = rememberCoroutineScope()
+    val itemW = 66.dp
+
+    // index of the item closest to the centre
+    val centre by remember {
+        derivedStateOf {
+            val info = state.layoutInfo
+            val mid = (info.viewportStartOffset + info.viewportEndOffset) / 2
+            info.visibleItemsInfo.minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - mid) }?.index ?: start
         }
-        LazyRow(
-            state = state, flingBehavior = rememberSnapFlingBehavior(state),
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items(list, key = { it.id }) { r ->
-                val sel = r.id == vm.recipe.id
-                Box(
-                    Modifier.size(if (sel) 64.dp else 54.dp).clip(RoundedCornerShape(14.dp))
-                        .background(if (sel) FC.panel2 else Color.Transparent)
-                        .border(if (sel) 1.5.dp else 0.dp, if (sel) FC.amber else Color.Transparent, RoundedCornerShape(14.dp))
-                        .clickable { vm.selectRecipe(r) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CameraIcon(r, width = if (sel) 54.dp else 42.dp, modifier = Modifier.alpha(if (sel) 1f else 0.8f))
+    }
+    val centreRecipe = list[centre % n]
+    LaunchedEffect(centre) { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+    // select when the wheel settles
+    LaunchedEffect(state.isScrollInProgress) {
+        if (!state.isScrollInProgress) {
+            val r = list[centre % n]
+            if (r.id != vm.recipe.id) vm.selectRecipe(r)
+        }
+    }
+    // follow outside changes (picker sheet / swipe on viewfinder) along the shortest way round
+    LaunchedEffect(vm.recipe.id) {
+        if (state.isScrollInProgress) return@LaunchedEffect
+        val cur = centre
+        val target = list.indexOfFirst { it.id == vm.recipe.id }
+        if (target < 0 || cur % n == target) return@LaunchedEffect
+        var d = target - cur % n
+        if (d > n / 2) d -= n
+        if (d < -n / 2) d += n
+        state.animateScrollToItem(cur + d)
+    }
+
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Apps, "All cameras", tint = FC.text,
+                modifier = Modifier.size(34.dp).clip(CircleShape).background(FC.panel2).clickable(onClick = onAll).padding(7.dp))
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(centreRecipe.name.uppercase(), color = FC.amber, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1)
+                Text(centreRecipe.category.label, color = FC.dim, fontSize = 10.sp)
+            }
+            val tuned = !vm.tweak.isDefault
+            Row(
+                Modifier.clip(RoundedCornerShape(17.dp)).background(if (tuned) FC.amber else FC.panel2).clickable(onClick = onTune)
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Tune, null, tint = if (tuned) Color.Black else FC.text, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Customize", color = if (tuned) Color.Black else FC.text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth().height(84.dp)) {
+            val pad = (maxWidth - itemW) / 2
+            LazyRow(
+                state = state, flingBehavior = rememberSnapFlingBehavior(state),
+                modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = pad),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items(Int.MAX_VALUE) { i ->
+                    val r = list[i % n]
+                    Box(
+                        Modifier.width(itemW).height(80.dp)
+                            .graphicsLayer {
+                                val info = state.layoutInfo
+                                val mid = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                                val item = info.visibleItemsInfo.firstOrNull { it.index == i }
+                                val d = if (item == null) 1f else ((item.offset + item.size / 2f - mid) / (size.width * 3.2f)).coerceIn(-1f, 1f)
+                                val ad = kotlin.math.abs(d)
+                                val sc = 1.15f - 0.55f * ad
+                                scaleX = sc; scaleY = sc
+                                alpha = 1f - 0.65f * ad
+                                translationY = ad * ad * 34f * density
+                                rotationZ = d * 18f
+                            }
+                            .clickable { scope.launch { state.animateScrollToItem(i) } },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CameraIcon(r, width = 58.dp)
+                    }
                 }
             }
+            // centre marker
+            Box(Modifier.align(Alignment.BottomCenter).size(width = 22.dp, height = 3.dp).clip(RoundedCornerShape(2.dp)).background(FC.amber))
         }
     }
 }
@@ -534,7 +617,7 @@ private fun BottomBar(vm: CamViewModel, onShutter: () -> Unit, onGallery: () -> 
 private fun ShutterButton(vm: CamViewModel, onClick: () -> Unit) {
     val video = vm.recipe.isVideo
     Box(
-        Modifier.size(78.dp).border(4.dp, Color.White, CircleShape).padding(8.dp).clip(CircleShape)
+        Modifier.size(78.dp).border(4.dp, if (vm.slowShutter) FC.amber else Color.White, CircleShape).padding(8.dp).clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

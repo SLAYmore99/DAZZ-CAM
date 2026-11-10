@@ -131,3 +131,23 @@ data class Accessories(
     val fisheyeMode: Int get() = if (fisheyeC) 2 else if (fisheyeW) 1 else 0
     val anyLens: Boolean get() = fisheyeW || fisheyeC || prism || star || nd || doubleExposure
 }
+
+/** Per-camera user customisation (1 = the camera's own look). Saved per camera. */
+data class Tweak(
+    val intensity: Float = 1f,
+    val grain: Float = 1f,
+    val leaks: Float = 1f,
+    val glow: Float = 1f,
+    val vignette: Float = 1f,
+    val soft: Float = 1f,
+) {
+    fun encode() = listOf(intensity, grain, leaks, glow, vignette, soft).joinToString(",")
+    val isDefault: Boolean get() = this == Tweak()
+
+    companion object {
+        fun decode(s: String?): Tweak = try {
+            val v = s!!.split(",").map { it.toFloat() }
+            Tweak(v[0], v[1], v[2], v[3], v[4], v[5])
+        } catch (_: Exception) { Tweak() }
+    }
+}

@@ -9,6 +9,7 @@ import com.funcam.app.model.InstantFrame
 import com.funcam.app.model.Ratio
 import com.funcam.app.model.Recipe
 import com.funcam.app.model.StampStyle
+import com.funcam.app.model.Tweak
 import com.funcam.app.model.V3
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -25,6 +26,7 @@ data class RenderParams(
     val tint: Float = 0f,
     val flashFired: Boolean = false,
     val instantFrame: InstantFrame = InstantFrame.WHITE,
+    val tweak: Tweak = Tweak(),
 ) {
     val stampStyle: StampStyle get() = if (stampOn) recipe.stamp else StampStyle.NONE
 }
@@ -192,6 +194,10 @@ class FilmPipeline(context: Context) {
     ) {
         val l = p.recipe.look
         val a = p.acc
+        val t = p.tweak
+        val k = t.intensity
+        fun dev(v: Float, neutral: Float) = neutral + (v - neutral) * k
+        fun dev3(v: V3, neutral: Float) = V3(dev(v.x, neutral), dev(v.y, neutral), dev(v.z, neutral))
         val imgW = maxOf(16, Math.round(outW * (spec.rect[2] - spec.rect[0])))
         val imgH = maxOf(16, Math.round(outH * (spec.rect[3] - spec.rect[1])))
         ensure(imgW, imgH)
@@ -209,25 +215,25 @@ class FilmPipeline(context: Context) {
         grade.v4("uSrc2Crop", tex2Crop ?: floatArrayOf(0f, 0f, 1f, 1f))
         grade.f("uDouble", if (tex2 != 0) 1f else 0f)
         grade.tex("uLut", 2, GLES30.GL_TEXTURE_3D, luts.get(l.lut))
-        grade.f("uLutMix", if (l.lut == null) 0f else l.lutMix)
+        grade.f("uLutMix", if (l.lut == null) 0f else (l.lutMix * k).coerceIn(0f, 1f))
         grade.f("uAspect", spec.imgAspect)
         grade.f("uTime", time)
         grade.ui("uSeed", seed)
-        grade.f("uExposure", l.exposure + p.exposure - if (a.nd) 1.3f else 0f)
-        grade.f("uTemp", l.temp + p.temp)
-        grade.f("uTint", l.tint + p.tint)
-        grade.f("uContrast", l.contrast)
-        grade.f("uSaturation", l.saturation)
-        grade.f("uFade", l.fade)
+        grade.f("uExposure", dev(l.exposure, 0f) + p.exposure - if (a.nd) 1.3f else 0f)
+        grade.f("uTemp", dev(l.temp, 0f) + p.temp)
+        grade.f("uTint", dev(l.tint, 0f) + p.tint)
+        grade.f("uContrast", dev(l.contrast, 1f))
+        grade.f("uSaturation", dev(l.saturation, 1f).coerceAtLeast(0f))
+        grade.f("uFade", dev(l.fade, 0f).coerceAtLeast(0f))
         grade.f("uMono", l.mono)
-        grade.v3("uLift", l.lift)
-        grade.v3("uGain", l.gain)
-        grade.v3("uShadowTint", l.shadowTint)
-        grade.v3("uHighTint", l.highTint)
+        grade.v3("uLift", dev3(l.lift, 0f))
+        grade.v3("uGain", dev3(l.gain, 1f))
+        grade.v3("uShadowTint", dev3(l.shadowTint, 0f))
+        grade.v3("uHighTint", dev3(l.highTint, 0f))
         grade.f("uFlash", if (p.flashFired) l.flash else 0f)
         grade.v3("uFlashColor", a.gel.color)
         grade.i("uFisheye", a.fisheyeMode)
-        grade.f("uChroma", l.chroma)
+        grade.f("uChroma", l.chroma * k)
         grade.f("uPixel", l.pixel)
         grade.f("uSharpen", l.sharpen)
         grade.f("uPrism", if (a.prism) 1f else 0f)
@@ -271,17 +277,17 @@ class FilmPipeline(context: Context) {
         comp.f("uTime", time)
         comp.ui("uSeed", seed)
         comp.ui("uLeakSeed", leakSeed)
-        comp.f("uBloom", l.bloom)
-        comp.f("uHalation", l.halation)
+        comp.f("uBloom", l.bloom * t.glow)
+        comp.f("uHalation", l.halation * t.glow)
         comp.v3("uHalationColor", l.halationColor)
-        comp.f("uSoft", l.soft)
-        comp.f("uSoftAll", l.softAll)
+        comp.f("uSoft", l.soft * t.soft)
+        comp.f("uSoftAll", l.softAll * t.soft)
         comp.f("uStar", if (a.star) 1f else 0f)
-        comp.f("uVignette", l.vignette)
-        comp.f("uLeak", if (a.lightLeaks) l.leak else 0f)
+        comp.f("uVignette", (l.vignette * t.vignette).coerceAtMost(1.2f))
+        comp.f("uLeak", if (a.lightLeaks) l.leak * t.leaks else 0f)
         comp.f("uLeakAnim", if (p.recipe.isVideo) 1f else 0f)
         comp.v3("uLeakColor", l.leakColor)
-        comp.f("uGrain", l.grain)
+        comp.f("uGrain", l.grain * t.grain)
         comp.f("uGrainSize", l.grainSize)
         comp.f("uNoise", l.noise)
         comp.f("uScan", l.scan)

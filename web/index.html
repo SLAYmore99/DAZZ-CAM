@@ -49,17 +49,31 @@
   #adjust .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px 0; }
   #adjust input[type=range] { flex: 1; accent-color: var(--amber); }
   #adjust .val { color: var(--amber); font: 12px ui-monospace, Menlo, monospace; min-width: 58px; text-align: right; }
-  .carousel { flex: none; padding-top: 8px; }
-  .carousel .head { display: flex; align-items: center; padding: 0 16px; }
-  .carousel .head b { color: var(--amber); font-weight: 900; font-size: 13px; text-transform: uppercase; }
-  .carousel .head span { color: var(--dim); font-size: 11px; flex: 1; }
-  .carousel .head button { background: var(--panel2); font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 6px; }
-  #strip { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 6px 12px 0; scroll-snap-type: x mandatory; scrollbar-width: none; }
-  #strip::-webkit-scrollbar, #adjust .chips::-webkit-scrollbar { display: none; }
-  #strip button { flex: none; width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; scroll-snap-align: start; border: 1.5px solid transparent; opacity: .8; }
-  #strip button.sel { width: 64px; height: 64px; background: var(--panel2); border-color: var(--amber); opacity: 1; }
-  #strip canvas { width: 42px; height: 30px; }
-  #strip button.sel canvas { width: 54px; height: 39px; }
+  .carousel { flex: none; padding-top: 6px; }
+  .carousel .head { display: flex; align-items: center; padding: 0 14px; gap: 8px; }
+  .carousel .head .name { flex: 1; text-align: center; }
+  .carousel .head b { color: var(--amber); font-weight: 900; font-size: 15px; text-transform: uppercase; display: block; }
+  .carousel .head span { color: var(--dim); font-size: 10px; }
+  #bAll { width: 34px; height: 34px; border-radius: 50%; background: var(--panel2); display: grid; place-items: center; }
+  #bAll svg { width: 20px; fill: var(--text); }
+  #bTune { background: var(--panel2); border-radius: 17px; padding: 7px 10px; font-size: 11px; font-weight: 700; display: flex; gap: 4px; align-items: center; }
+  #bTune svg { width: 16px; height: 16px; fill: currentColor; }
+  #bTune.on { background: var(--amber); color: #000; }
+  .wheelbox { position: relative; height: 84px; }
+  #wheel { display: flex; align-items: center; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+  #wheel::-webkit-scrollbar, #adjust .chips::-webkit-scrollbar { display: none; }
+  #wheel button { flex: none; width: 66px; height: 80px; display: grid; place-items: center; scroll-snap-align: center; will-change: transform; }
+  #wheel canvas { width: 58px; height: 42px; pointer-events: none; }
+  .wheelbox .mark { position: absolute; left: 50%; bottom: 0; width: 22px; height: 3px; margin-left: -11px; border-radius: 2px; background: var(--amber); }
+  #slow { position: absolute; top: 10px; left: 10px; background: var(--amber); color: #000; font-weight: 900; font-size: 11px; padding: 4px 9px; border-radius: 12px; display: none; }
+  #shutter.slow { border-color: var(--amber); }
+  .tw { padding: 4px 0; }
+  .tw .row { display: flex; align-items: baseline; gap: 8px; }
+  .tw b { font-size: 14px; } .tw small { color: var(--dim); font-size: 11px; flex: 1; } .tw em { color: var(--amber); font-style: normal; font-weight: 700; font-size: 12px; }
+  .tw input { width: 100%; accent-color: var(--amber); }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .pills button { background: var(--panel2); border-radius: 8px; padding: 7px 11px; font-weight: 700; font-size: 12px; }
+  .pills button.sel { background: var(--amber); color: #000; }
   .bottom { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; }
   #thumb { width: 50px; height: 50px; border-radius: 10px; background: var(--panel2) center/cover; border: 1px solid #8d877e80; display: grid; place-items: center; }
   #thumb svg { width: 24px; fill: var(--dim); }
@@ -148,14 +162,19 @@
       <div id="count"></div>
       <div id="rec"><i></i><span>00:00</span></div>
       <div id="status"></div>
+      <div id="slow"></div>
       <div id="blink"></div>
     </div>
   </div>
   <div id="zoom"></div>
   <div id="adjust"><div class="chips"></div><div class="row"><input type="range"><span class="val"></span></div></div>
   <div class="carousel">
-    <div class="head"><b id="camName"></b><span id="camCat"></span><button id="bAll">ALL CAMERAS</button></div>
-    <div id="strip"></div>
+    <div class="head">
+      <button id="bAll" aria-label="All cameras"><svg viewBox="0 0 24 24"><path d="M4 8h4V4H4zm6 12h4v-4h-4zm-6 0h4v-4H4zm0-6h4v-4H4zm6 0h4v-4h-4zm6-10v4h4V4zm-6 4h4V4h-4zm6 6h4v-4h-4zm0 6h4v-4h-4z"/></svg></button>
+      <div class="name"><b id="camName"></b><span id="camCat"></span></div>
+      <button id="bTune"><svg viewBox="0 0 24 24"><use href="#i-tune"/></svg>Customize</button>
+    </div>
+    <div class="wheelbox"><div id="wheel"></div><div class="mark"></div></div>
   </div>
   <div class="bottom">
     <button id="thumb" aria-label="Your photos"><svg viewBox="0 0 24 24"><use href="#i-photos"/></svg></button>
@@ -176,6 +195,7 @@
 <div class="sheet" id="sAcc"><div class="grab"></div><h2>Accessories</h2><div class="sub">Stack lenses and filters on any camera.</div><div class="list"></div><b style="display:block;margin-top:10px">Flash colour</b><div class="gels"></div></div>
 <div class="sheet" id="sSettings"><div class="grab"></div><h2>Settings</h2><div class="list"></div>
   <p class="sub" style="margin-top:16px">FUN CAM is free and open source (MIT). This is the iPhone/web test version — photos are kept on this device until you save them to Photos.</p></div>
+<div class="sheet" id="sTune"><div class="grab"></div><h2 id="tuneTitle">Customize</h2><div class="sub">Saved for this camera only · <a id="tuneReset" style="color:var(--amber)">Reset</a></div><div class="list"></div></div>
 <div class="sheet" id="sRoll"><div class="grab"></div><h2>Your photos</h2><div class="sub">Tap a shot, then “Save” to put it in your Photos app.</div><div class="rollgrid"></div></div>
 <div id="viewer"><div class="media"></div><div class="bar"><button id="vClose">Close</button><button id="vDelete">Delete</button><button id="vSave" class="primary">Save</button></div></div>
 <input type="file" id="file" accept="image/*" hidden>

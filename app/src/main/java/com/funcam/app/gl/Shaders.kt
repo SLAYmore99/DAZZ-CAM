@@ -358,8 +358,8 @@ void main() {
     // glow (bloom) and halation from the blurred highlights
     float bl = luma(B);
     vec3 glow = B * smoothstep(0.45, 1.0, bl);
-    c = 1.0 - (1.0 - c) * (1.0 - clamp(glow * uBloom * 1.4, 0.0, 1.0));
-    c += uHalationColor * max(bl - luma(c) * 0.55 - 0.18, 0.0) * uHalation * 2.2;
+    c = 1.0 - (1.0 - c) * (1.0 - clamp(glow * uBloom * 1.75, 0.0, 1.0));
+    c += uHalationColor * max(bl - luma(c) * 0.55 - 0.16, 0.0) * uHalation * 2.9;
     if (uStar > 0.0) {
         vec3 s = vec3(0.0);
         for (int d = 0; d < 4; d++) {
@@ -392,7 +392,7 @@ void main() {
         shape += 0.35 * exp(-pow(across / 0.05, 2.0)) * smoothstep(0.3, 0.7, fbm(vec2(along * 6.0, 1.0), uLeakSeed + 5u));
         vec3 lc = mix(uLeakColor, vec3(1.0, 0.82, 0.45), smoothstep(0.55, 1.0, shape));
         lc = mix(lc, vec3(1.0, 0.15, 0.08), smoothstep(0.4, 0.0, shape) * 0.5);
-        c = 1.0 - (1.0 - clamp(c, 0.0, 1.0)) * (1.0 - clamp(lc * shape * uLeak * 1.3, 0.0, 1.0));
+        c = 1.0 - (1.0 - clamp(c, 0.0, 1.0)) * (1.0 - clamp(lc * shape * uLeak * 1.6, 0.0, 1.0));
     }
 
     // projector / cine flicker
@@ -442,7 +442,7 @@ void main() {
         float lc = luma(c);
         float chroma = clamp(length(c - lc) * 4.0, 0.0, 1.0);
         float dye = vnoise(ra * gp * 0.8 + 91.0, fseed + 4u) - 0.5;
-        c += (g + vec3(dye, -dye * 0.5, -dye) * 0.3 * chroma) * uGrain * 0.2 * resp;
+        c += (g + vec3(dye, -dye * 0.5, -dye) * 0.35 * chroma) * uGrain * 0.25 * resp;
     }
     // digital sensor noise: fine, mostly chroma, stronger in shadows
     if (uNoise > 0.0) {
