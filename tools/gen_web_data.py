@@ -7,7 +7,9 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 SRC = os.path.join(ROOT, 'app/src/main/java/com/funcam/app')
 
 sh = open(os.path.join(SRC, 'gl/Shaders.kt')).read()
-shaders = {k: re.search(r'const val ' + k + r' = """(.*?)"""', sh, re.S).group(1) for k in ['VERTEX', 'INPUT', 'COPY', 'FILM']}
+common = re.search(r'private const val COMMON = """(.*?)"""', sh, re.S).group(1)
+shaders = {k: re.search(r'const val ' + k + r' = """(.*?)"""', sh, re.S).group(1).replace('$COMMON', common)
+           for k in ['VERTEX', 'INPUT', 'COPY', 'GRADE', 'DOWN', 'BLUR', 'COMPOSITE']}
 # Web input is a regular 2D texture (video element), already upright.
 shaders['INPUT'] = shaders['INPUT'].replace('#extension GL_OES_EGL_image_external_essl3 : require\n', '') \
     .replace('samplerExternalOES', 'sampler2D')
@@ -33,6 +35,8 @@ for m in pat.finditer(cams):
         L[k] = [float(a), float(b), float(c)]
     for k, v in re.findall(r'(\w+) = (-?[\d.]+)f\b', look):
         L.setdefault(k, float(v))
+    m2 = re.search(r'lut = "(\w+)"', look)
+    if m2: L['lut'] = m2.group(1)
     get = lambda pat_, d=None: (re.search(pat_, rest).group(1) if re.search(pat_, rest) else d)
     rl = None
     i = rest.find('ratios = listOf(')
@@ -49,6 +53,8 @@ for m in pat.finditer(cams):
         stamp=get(r'stamp = StampStyle\.(\w+)', 'FILM_ORANGE'), isVideo=get(r'isVideo = (true)', 'false') == 'true',
         videoFps=int(get(r'videoFps = (\d+)', '30')), manual=get(r'manual = (true)', 'false') == 'true',
         canImport=get(r'canImport = (false)', 'true') == 'true',
+        flashDefault=get(r'flashDefault = (true)', 'false') == 'true',
+        edgeText=get(r'edgeText = "([^"]*)"', ''),
     ))
 
 shutters = [eval(x.replace('f', '')) for x in re.findall(r'(1 / \d+f|1f)', re.search(r'SHUTTER_SPEEDS = listOf\((.*?)\)\n', cams, re.S).group(1))]

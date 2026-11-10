@@ -6,20 +6,24 @@ import android.view.SurfaceView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,29 +34,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Grid3x3
 import androidx.compose.material.icons.filled.GridOff
-import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timer10
 import androidx.compose.material.icons.filled.Timer3
 import androidx.compose.material.icons.filled.TimerOff
@@ -65,6 +62,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -72,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -96,11 +95,13 @@ import com.funcam.app.model.Cameras
 import com.funcam.app.model.FPS_VALUES
 import com.funcam.app.model.ISO_VALUES
 import com.funcam.app.model.SHUTTER_SPEEDS
+import com.funcam.app.model.focalLabel
 import com.funcam.app.model.shutterLabel
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private enum class Panel { NONE, EXP, TEMP, TINT, ISO, SHUTTER, FPS }
+private enum class Dial { NONE, WB, LENS, EV, ISO, SHUTTER, FPS }
 
 @Composable
 fun CameraScreen(vm: CamViewModel) {
@@ -112,8 +113,7 @@ fun CameraScreen(vm: CamViewModel) {
     var showAcc by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showDarkroom by remember { mutableStateOf(false) }
-    var panel by remember { mutableStateOf(Panel.NONE) }
-    var adjustOpen by remember { mutableStateOf(false) }
+    var dial by remember { mutableStateOf(Dial.NONE) }
 
     LaunchedEffect(Unit) { vm.bindCamera(lifecycleOwner) }
     DisposableEffect(lifecycleOwner) {
@@ -121,6 +121,7 @@ fun CameraScreen(vm: CamViewModel) {
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
+    LaunchedEffect(vm.recipe.id) { if (dial in listOf(Dial.ISO, Dial.SHUTTER, Dial.FPS) && !vm.recipe.manual) dial = Dial.NONE }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) vm.importPhoto(uri)
@@ -129,25 +130,21 @@ fun CameraScreen(vm: CamViewModel) {
     Box(Modifier.fillMaxSize().background(FC.bg)) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             TopBar(
-                vm, adjustOpen = adjustOpen,
-                onAdjust = { adjustOpen = !adjustOpen; if (!adjustOpen) panel = Panel.NONE else if (panel == Panel.NONE) panel = Panel.EXP },
-                onAcc = { showAcc = true }, onSettings = { showSettings = true },
+                vm, onAcc = { showAcc = true }, onSettings = { showSettings = true },
                 onImport = { importLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                 onDarkroom = { showDarkroom = true },
             )
-            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
                 Viewfinder(vm)
             }
-            Box(Modifier.fillMaxWidth().height(46.dp), contentAlignment = Alignment.Center) {
-                if (!vm.recording) ZoomPills(vm, Modifier)
+            DialRow(vm, dial) { dial = if (dial == it) Dial.NONE else it }
+            Box(Modifier.fillMaxWidth().height(58.dp), contentAlignment = Alignment.Center) {
+                if (dial != Dial.NONE) DialRuler(vm, dial)
+                else Text(
+                    vm.recipe.description, color = FC.dim, fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 2,
+                    lineHeight = 14.sp, modifier = Modifier.padding(horizontal = 36.dp),
+                )
             }
-            AnimatedVisibility(adjustOpen, enter = fadeIn(), exit = fadeOut()) {
-                Column {
-                    AdjustRow(vm, panel) { panel = it }
-                    if (panel != Panel.NONE) AdjustSlider(vm, panel)
-                }
-            }
-            CameraCarousel(vm, onAll = { showPicker = true })
             BottomBar(
                 vm,
                 onShutter = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); vm.onShutter() },
@@ -158,6 +155,7 @@ fun CameraScreen(vm: CamViewModel) {
                     else Intent(Intent.ACTION_VIEW).setType("image/*")
                     runCatching { ctx.startActivity(intent) }
                 },
+                onCameras = { showPicker = true },
             )
         }
 
@@ -179,12 +177,11 @@ fun CameraScreen(vm: CamViewModel) {
 
 @Composable
 private fun TopBar(
-    vm: CamViewModel, adjustOpen: Boolean, onAdjust: () -> Unit, onAcc: () -> Unit, onSettings: () -> Unit,
-    onImport: () -> Unit, onDarkroom: () -> Unit,
+    vm: CamViewModel, onAcc: () -> Unit, onSettings: () -> Unit, onImport: () -> Unit, onDarkroom: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 4.dp),
+        Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         TopIcon(if (vm.flashOn) Icons.Filled.FlashOn else Icons.Filled.FlashOff, vm.flashOn) { vm.toggleFlash() }
@@ -198,9 +195,8 @@ private fun TopBar(
             modifier = Modifier.clip(RoundedCornerShape(7.dp)).border(1.dp, FC.dim.copy(alpha = 0.6f), RoundedCornerShape(7.dp))
                 .clickable(enabled = vm.recipe.ratios.size > 1) { vm.cycleRatio() }.padding(horizontal = 9.dp, vertical = 3.dp),
         )
-        TopIcon(Icons.Filled.Tune, adjustOpen || vm.exposure != 0f || vm.temp != 0f || vm.tint != 0f, onAdjust)
-        val accOn = vm.acc.run { fisheye || prism || star || nd || doubleExposure }
-        TopIcon(Icons.Filled.AutoAwesome, accOn, onAcc)
+        TopIcon(Icons.Filled.Layers, vm.acc.doubleExposure) { vm.updateAcc(vm.acc.copy(doubleExposure = !vm.acc.doubleExposure)) }
+        TopIcon(Icons.Filled.AutoAwesome, vm.acc.run { fisheyeW || fisheyeC || prism || star || nd }, onAcc)
         Box {
             TopIcon(Icons.Filled.MoreVert, false) { menu = true }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = FC.panel2) {
@@ -209,18 +205,12 @@ private fun TopBar(
                     leadingIcon = { Icon(if (vm.grid) Icons.Filled.GridOff else Icons.Filled.Grid3x3, null) },
                     onClick = { vm.grid = !vm.grid; vm.saveSettings(); menu = false },
                 )
-                DropdownMenuItem(
-                    text = { Text("Import photo") }, leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, null) },
-                    onClick = { menu = false; onImport() },
-                )
-                DropdownMenuItem(
-                    text = { Text("Darkroom") }, leadingIcon = { Icon(Icons.Filled.Science, null) },
-                    onClick = { menu = false; onDarkroom() },
-                )
-                DropdownMenuItem(
-                    text = { Text("Settings") }, leadingIcon = { Icon(Icons.Filled.Settings, null) },
-                    onClick = { menu = false; onSettings() },
-                )
+                DropdownMenuItem(text = { Text("Import photo") }, leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, null) },
+                    onClick = { menu = false; onImport() })
+                DropdownMenuItem(text = { Text("Darkroom") }, leadingIcon = { Icon(Icons.Filled.Science, null) },
+                    onClick = { menu = false; onDarkroom() })
+                DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { Icon(Icons.Filled.Settings, null) },
+                    onClick = { menu = false; onSettings() })
             }
         }
     }
@@ -236,21 +226,18 @@ private fun Viewfinder(vm: CamViewModel) {
     val spec = vm.frameSpec
     val blink = remember { Animatable(0f) }
     LaunchedEffect(vm.flashBlink) {
-        if (vm.flashBlink > 0) {
-            blink.snapTo(1f); blink.animateTo(0f, tween(220))
-        }
+        if (vm.flashBlink > 0) { blink.snapTo(1f); blink.animateTo(0f, tween(240)) }
     }
     var focus by remember { mutableStateOf<Offset?>(null) }
     LaunchedEffect(focus) { if (focus != null) { delay(900); focus = null } }
+    var swipe by remember { mutableFloatStateOf(0f) }
 
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val maxW = maxWidth
-        val maxH = maxHeight
         val a = spec.outAspect
-        val (w, h) = if (maxW / maxH > a) (maxH * a) to maxH else maxW to (maxW / a)
+        val (w, h) = if (maxWidth / maxHeight > a) (maxHeight * a) to maxHeight else maxWidth to (maxWidth / a)
         val density = LocalDensity.current
         Box(
-            Modifier.size(w, h).clip(RoundedCornerShape(4.dp))
+            Modifier.size(w, h).clip(RoundedCornerShape(3.dp))
                 .pointerInput(spec) {
                     detectTapGestures { off ->
                         val x = off.x / size.width
@@ -258,11 +245,17 @@ private fun Viewfinder(vm: CamViewModel) {
                         val r = spec.rect
                         val px = (x - r[0]) / (r[2] - r[0])
                         val py = 1f - (yUp - r[1]) / (r[3] - r[1])
-                        if (px in 0f..1f && py in 0f..1f) {
-                            focus = off
-                            vm.tapFocus(px, py)
-                        }
+                        if (px in 0f..1f && py in 0f..1f) { focus = off; vm.tapFocus(px, py) }
                     }
+                }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (abs(swipe) > size.width * 0.18f) vm.stepCamera(if (swipe < 0) 1 else -1)
+                            swipe = 0f
+                        },
+                        onDragCancel = { swipe = 0f },
+                    ) { _, d -> swipe += d }
                 }
                 .pointerInput(Unit) {
                     detectTransformGestures { _, _, zoomChange, _ ->
@@ -279,9 +272,7 @@ private fun Viewfinder(vm: CamViewModel) {
                             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
                                 vm.renderer.setDisplay(holder.surface, width, height)
                             }
-                            override fun surfaceDestroyed(holder: SurfaceHolder) {
-                                vm.renderer.setDisplay(null, 0, 0)
-                            }
+                            override fun surfaceDestroyed(holder: SurfaceHolder) { vm.renderer.setDisplay(null, 0, 0) }
                         })
                     }
                 },
@@ -309,23 +300,31 @@ private fun Viewfinder(vm: CamViewModel) {
             }
             if (blink.value > 0f) Box(Modifier.fillMaxSize().alpha(blink.value).background(Color.Black))
             if (vm.countdown > 0) {
-                Text(
-                    "${vm.countdown}", color = Color.White, fontSize = 96.sp, fontWeight = FontWeight.Black,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+                Text("${vm.countdown}", color = Color.White, fontSize = 96.sp, fontWeight = FontWeight.Black, modifier = Modifier.align(Alignment.Center))
             }
             if (vm.recording) RecordingBadge(vm, Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
             else CameraNameToast(vm, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
-
             val status = vm.multiProgress ?: if (vm.busy && !vm.recording && vm.countdown == 0) "Developing…" else null
             status?.let {
                 Text(
                     it, color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Center)
-                        .background(FC.amber, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 3.dp),
+                    modifier = Modifier.align(Alignment.Center).background(FC.amber, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 3.dp),
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CameraNameToast(vm: CamViewModel, modifier: Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.recipe.id) { visible = true; delay(1400); visible = false }
+    AnimatedVisibility(visible, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
+        Text(
+            vm.recipe.name.uppercase(), color = FC.amber, fontWeight = FontWeight.Black, fontSize = 15.sp,
+            modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 6.dp),
+        )
     }
 }
 
@@ -344,198 +343,171 @@ private fun RecordingBadge(vm: CamViewModel, modifier: Modifier) {
     }
 }
 
+/** Round dial buttons under the viewfinder: WB · lens (mm) · EV, plus ISO / S / FPS on manual bodies. */
 @Composable
-private fun AdjustRow(vm: CamViewModel, panel: Panel, onSelect: (Panel) -> Unit) {
-    val r = vm.recipe
-    val items = buildList {
-        add(Panel.EXP to "EXP " + "%+.1f".format(vm.exposure))
-        add(Panel.TEMP to "TEMP " + "%+.1f".format(vm.temp))
-        add(Panel.TINT to "TINT " + "%+.1f".format(vm.tint))
-        if (r.manual) {
-            add(Panel.ISO to "ISO " + if (vm.iso == 0) "AUTO" else vm.iso.toString())
-            add(Panel.SHUTTER to "S " + if (vm.shutter == 0f) "AUTO" else shutterLabel(vm.shutter))
-            if (r.isVideo) add(Panel.FPS to "${vm.fps} FPS")
-        }
-    }
-    LazyRow(
-        Modifier.fillMaxWidth().padding(top = 6.dp), contentPadding = PaddingValues(horizontal = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        items(items) { (p, label) ->
-            val sel = p == panel
-            Text(
-                label, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
-                color = if (sel) Color.Black else FC.text,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (sel) FC.amber else FC.panel2)
-                    .clickable { onSelect(p) }.padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun AdjustSlider(vm: CamViewModel, panel: Panel) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp)) {
-        when (panel) {
-            Panel.EXP -> ValueSlider(vm.exposure, -2f, 2f) { vm.exposure = it; vm.sync() }
-            Panel.TEMP -> ValueSlider(vm.temp, -2f, 2f) { vm.temp = it; vm.sync() }
-            Panel.TINT -> ValueSlider(vm.tint, -2f, 2f) { vm.tint = it; vm.sync() }
-            Panel.ISO -> StepSlider(ISO_VALUES.map { if (it == 0) "AUTO" else "$it" }, ISO_VALUES.indexOf(vm.iso).coerceAtLeast(0)) {
-                vm.setManualValues(iso = ISO_VALUES[it])
-            }
-            Panel.SHUTTER -> {
-                val labels = listOf("AUTO") + SHUTTER_SPEEDS.map { shutterLabel(it) }
-                val idx = if (vm.shutter == 0f) 0 else SHUTTER_SPEEDS.indexOfFirst { it == vm.shutter } + 1
-                StepSlider(labels, idx.coerceAtLeast(0)) { vm.setManualValues(shutter = if (it == 0) 0f else SHUTTER_SPEEDS[it - 1]) }
-            }
-            Panel.FPS -> StepSlider(FPS_VALUES.map { "$it" }, FPS_VALUES.indexOf(vm.fps).coerceAtLeast(0)) {
-                vm.setManualValues(fps = FPS_VALUES[it])
-            }
-            Panel.NONE -> {}
-        }
-    }
-}
-
-@Composable
-private fun ValueSlider(value: Float, min: Float, max: Float, onChange: (Float) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.Slider(
-            value = value, onValueChange = onChange, valueRange = min..max, modifier = Modifier.weight(1f),
-        )
-        Text(
-            "RESET", color = FC.amber, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clickable { onChange(0f) }.padding(8.dp),
-        )
-    }
-}
-
-@Composable
-private fun StepSlider(labels: List<String>, index: Int, onChange: (Int) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.Slider(
-            value = index.toFloat(), onValueChange = { onChange(it.roundToInt()) },
-            valueRange = 0f..(labels.size - 1).toFloat(), steps = (labels.size - 2).coerceAtLeast(0),
-            modifier = Modifier.weight(1f),
-        )
-        Text(labels[index.coerceIn(0, labels.lastIndex)], color = FC.amber, fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
-    }
-}
-
-@Composable
-private fun CameraNameToast(vm: CamViewModel, modifier: Modifier) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(vm.recipe.id) { visible = true; delay(1600); visible = false }
-    AnimatedVisibility(visible, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
-        Column(
-            Modifier.background(Color(0x99000000), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(vm.recipe.name.uppercase(), color = FC.amber, fontWeight = FontWeight.Black, fontSize = 15.sp)
-            Text(vm.recipe.description, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp,
-                textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.width(240.dp))
-        }
-    }
-}
-
-@Composable
-private fun ZoomPills(vm: CamViewModel, modifier: Modifier) {
-    val caps = vm.caps
-    val stops = buildList {
-        if (caps.minZoom < 0.95f) add(caps.minZoom)
-        add(1f)
-        if (caps.maxZoom >= 2f) add(2f)
-        if (caps.maxZoom >= 3f) add(3f)
-    }
-    if (stops.size < 2) return
+private fun DialRow(vm: CamViewModel, dial: Dial, onSelect: (Dial) -> Unit) {
     Row(
-        modifier.background(FC.panel, RoundedCornerShape(50)).padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically,
+        Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        stops.forEach { z ->
-            val sel = kotlin.math.abs(vm.zoom - z) < 0.05f
-            val label = if (z < 1f) "%.1f".format(z) else "${z.toInt()}"
-            Box(
-                Modifier.size(if (sel) 34.dp else 28.dp).clip(CircleShape)
-                    .background(if (sel) FC.panel2 else Color.Transparent)
-                    .clickable { vm.setZoomRatio(z) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(if (sel) "${label}×" else label, fontSize = if (sel) 11.sp else 10.sp, fontWeight = FontWeight.Bold,
-                    color = if (sel) FC.amber else Color.White)
+        DialButton(dial == Dial.WB, vm.temp != 0f, onClick = { onSelect(Dial.WB) }) {
+            Icon(Icons.Filled.Thermostat, "White balance", tint = if (dial == Dial.WB) Color.Black else FC.text, modifier = Modifier.size(18.dp))
+        }
+        DialButton(dial == Dial.LENS, false, onClick = { onSelect(Dial.LENS) }) {
+            Text(focalLabel(vm.zoom), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (dial == Dial.LENS) Color.Black else FC.text)
+        }
+        if (vm.recipe.manual) {
+            DialButton(dial == Dial.ISO, vm.iso != 0, wide = true, onClick = { onSelect(Dial.ISO) }) {
+                DialText(if (vm.iso == 0) "ISO A" else "ISO ${vm.iso}", dial == Dial.ISO)
             }
+            DialButton(dial == Dial.SHUTTER, vm.shutter != 0f, wide = true, onClick = { onSelect(Dial.SHUTTER) }) {
+                DialText(if (vm.shutter == 0f) "S A" else "S ${shutterLabel(vm.shutter)}", dial == Dial.SHUTTER)
+            }
+            if (vm.recipe.isVideo) DialButton(dial == Dial.FPS, false, wide = true, onClick = { onSelect(Dial.FPS) }) {
+                DialText("${vm.fps}fps", dial == Dial.FPS)
+            }
+        }
+        DialButton(dial == Dial.EV, vm.exposure != 0f, onClick = { onSelect(Dial.EV) }) {
+            DialText("EV", dial == Dial.EV)
         }
     }
 }
 
 @Composable
-private fun CameraCarousel(vm: CamViewModel, onAll: () -> Unit) {
-    val list = Cameras.all
-    val state = rememberLazyListState()
-    LaunchedEffect(vm.recipe.id) {
-        val i = list.indexOfFirst { it.id == vm.recipe.id }
-        if (i >= 0) state.animateScrollToItem((i - 2).coerceAtLeast(0))
-    }
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(vm.recipe.name.uppercase(), color = FC.amber, fontWeight = FontWeight.Black, fontSize = 13.sp)
-            Text("  ·  ${vm.recipe.category.label}", color = FC.dim, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            Text(
-                "ALL CAMERAS", color = FC.text, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onAll)
-                    .background(FC.panel2).padding(horizontal = 8.dp, vertical = 4.dp),
-            )
-        }
-        LazyRow(
-            state = state, flingBehavior = rememberSnapFlingBehavior(state),
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items(list, key = { it.id }) { r ->
-                val sel = r.id == vm.recipe.id
-                Box(
-                    Modifier.size(if (sel) 64.dp else 54.dp).clip(RoundedCornerShape(14.dp))
-                        .background(if (sel) FC.panel2 else Color.Transparent)
-                        .border(if (sel) 1.5.dp else 0.dp, if (sel) FC.amber else Color.Transparent, RoundedCornerShape(14.dp))
-                        .clickable { vm.selectRecipe(r) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CameraIcon(r, width = if (sel) 54.dp else 42.dp, modifier = Modifier.alpha(if (sel) 1f else 0.8f))
+private fun DialText(t: String, sel: Boolean) =
+    Text(t, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = if (sel) Color.Black else FC.text, maxLines = 1)
+
+@Composable
+private fun DialButton(selected: Boolean, changed: Boolean, wide: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier.padding(horizontal = 4.dp).height(38.dp).width(if (wide) 70.dp else 38.dp).clip(RoundedCornerShape(19.dp))
+            .background(if (selected) FC.amber else FC.panel2)
+            .border(1.dp, if (changed && !selected) FC.amber.copy(alpha = 0.7f) else Color.Transparent, RoundedCornerShape(19.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+/** Ruler-style slider for the selected dial. */
+@Composable
+private fun DialRuler(vm: CamViewModel, dial: Dial) {
+    when (dial) {
+        Dial.WB -> Ruler(vm.temp, -2f, 2f, label = "%+.1f".format(vm.temp), onReset = { vm.temp = 0f; vm.sync() }) { vm.temp = it; vm.sync() }
+        Dial.EV -> Ruler(vm.exposure, -2f, 2f, label = "%+.1f EV".format(vm.exposure), onReset = { vm.exposure = 0f; vm.sync() }) { vm.exposure = it; vm.sync() }
+        Dial.LENS -> {
+            val stops = buildList {
+                if (vm.caps.minZoom < 0.95f) add(vm.caps.minZoom)
+                addAll(listOf(1f, 1.46f, 2.08f, 3.2f, 5f).filter { it <= vm.caps.maxZoom })
+            }
+            Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                stops.forEach { z ->
+                    val sel = abs(vm.zoom - z) < 0.05f
+                    Text(
+                        focalLabel(z), fontWeight = FontWeight.Bold, fontSize = 13.sp, textAlign = TextAlign.Center,
+                        color = if (sel) Color.Black else FC.text,
+                        modifier = Modifier.padding(horizontal = 4.dp).size(40.dp).clip(CircleShape)
+                            .background(if (sel) FC.amber else FC.panel).clickable { vm.setZoomRatio(z) }.padding(top = 11.dp),
+                    )
                 }
             }
         }
+        Dial.ISO -> StepRuler(ISO_VALUES.map { if (it == 0) "AUTO" else "$it" }, ISO_VALUES.indexOf(vm.iso).coerceAtLeast(0)) {
+            vm.setManualValues(iso = ISO_VALUES[it])
+        }
+        Dial.SHUTTER -> {
+            val labels = listOf("AUTO") + SHUTTER_SPEEDS.map { shutterLabel(it) }
+            val idx = if (vm.shutter == 0f) 0 else SHUTTER_SPEEDS.indexOfFirst { it == vm.shutter } + 1
+            StepRuler(labels, idx.coerceAtLeast(0)) { vm.setManualValues(shutter = if (it == 0) 0f else SHUTTER_SPEEDS[it - 1]) }
+        }
+        Dial.FPS -> StepRuler(FPS_VALUES.map { "$it" }, FPS_VALUES.indexOf(vm.fps).coerceAtLeast(0)) { vm.setManualValues(fps = FPS_VALUES[it]) }
+        Dial.NONE -> {}
     }
 }
 
 @Composable
-private fun BottomBar(vm: CamViewModel, onShutter: () -> Unit, onGallery: () -> Unit) {
+private fun Ruler(value: Float, min: Float, max: Float, label: String, onReset: () -> Unit, onChange: (Float) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = FC.amber, fontFamily = FontFamily.Monospace, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onReset))
+        RulerTrack((value - min) / (max - min)) { onChange(min + it * (max - min)) }
+    }
+}
+
+@Composable
+private fun StepRuler(labels: List<String>, index: Int, onChange: (Int) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(labels[index.coerceIn(0, labels.lastIndex)], color = FC.amber, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        RulerTrack(index / (labels.size - 1f), ticks = labels.size) {
+            val i = (it * (labels.size - 1)).roundToInt()
+            if (i != index) onChange(i)
+        }
+    }
+}
+
+/** A tick ruler you drag left/right; the centre marker is the current value. */
+@Composable
+private fun RulerTrack(fraction: Float, ticks: Int = 41, onChange: (Float) -> Unit) {
+    var f by remember { mutableFloatStateOf(fraction) }
+    LaunchedEffect(fraction) { f = fraction }
+    Canvas(
+        Modifier.width(280.dp).height(30.dp).pointerInput(ticks) {
+            detectHorizontalDragGestures { _, d ->
+                f = (f - d / (size.width * 1.2f)).coerceIn(0f, 1f)
+                onChange(f)
+            }
+        },
+    ) {
+        val spacing = size.width * 1.2f / (ticks - 1)
+        val cx = size.width / 2
+        for (i in 0 until ticks) {
+            val x = cx + (i - f * (ticks - 1)) * spacing
+            if (x < 0 || x > size.width) continue
+            val major = ticks <= 15 || i % 5 == 0
+            val fade = 1f - abs(x - cx) / cx
+            drawLine(
+                FC.text.copy(alpha = 0.25f + 0.6f * fade), Offset(x, size.height * (if (major) 0.25f else 0.45f)),
+                Offset(x, size.height * 0.85f), if (major) 2.5f else 1.5f,
+            )
+        }
+        drawLine(FC.amber, Offset(cx, 0f), Offset(cx, size.height), 4f)
+    }
+}
+
+@Composable
+private fun BottomBar(vm: CamViewModel, onShutter: () -> Unit, onGallery: () -> Unit, onCameras: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Box(
-            Modifier.size(50.dp).clip(RoundedCornerShape(10.dp)).background(FC.panel2)
-                .border(1.dp, FC.dim.copy(alpha = 0.5f), RoundedCornerShape(10.dp)).clickable(onClick = onGallery),
-            contentAlignment = Alignment.Center,
-        ) {
-            val t = vm.lastThumb
-            if (t != null) Image(t.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            else Icon(Icons.Filled.PhotoLibrary, null, tint = FC.dim)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(80.dp)) {
+            Box(
+                Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(FC.panel2)
+                    .border(1.dp, FC.dim.copy(alpha = 0.5f), RoundedCornerShape(10.dp)).clickable(onClick = onGallery),
+                contentAlignment = Alignment.Center,
+            ) {
+                val t = vm.lastThumb
+                if (t != null) Image(t.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else Icon(Icons.Filled.PhotoLibrary, null, tint = FC.dim)
+            }
+            Spacer(Modifier.height(6.dp))
+            Icon(Icons.Filled.Cameraswitch, "Flip camera", tint = FC.text, modifier = Modifier.size(22.dp).clickable { vm.flipCamera() })
         }
         ShutterButton(vm, onShutter)
-        Box(
-            Modifier.size(50.dp).clip(CircleShape).background(FC.panel2).clickable { vm.flipCamera() },
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Filled.Cameraswitch, "Flip", tint = FC.text, modifier = Modifier.size(26.dp)) }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(80.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onCameras).padding(vertical = 4.dp),
+        ) {
+            CameraIcon(vm.recipe, width = 70.dp)
+            Text(vm.recipe.name, color = FC.amber, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
     }
 }
 
 @Composable
 private fun ShutterButton(vm: CamViewModel, onClick: () -> Unit) {
     val video = vm.recipe.isVideo
+    val pressScale by animateFloatAsState(if (vm.busy && !vm.recording) 0.9f else 1f, label = "shutter")
     Box(
-        Modifier.size(78.dp).border(4.dp, Color.White, CircleShape).padding(8.dp).clip(CircleShape)
+        Modifier.size(82.dp).scale(pressScale).border(4.dp, Color.White, CircleShape).padding(7.dp).clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

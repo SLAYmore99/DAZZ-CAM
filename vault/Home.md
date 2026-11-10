@@ -14,3 +14,4 @@
 ## Recent sessions
 - [[2026-11-09 FUN CAM build]]
 - [[2026-11-10 FUN CAM preview fix + iPhone web app]]
+- [[2026-11-10 FUN CAM v0.2 overhaul]]

@@ -1,5 +1,6 @@
 package com.funcam.app.gl
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.opengl.EGLSurface
@@ -17,14 +18,18 @@ import kotlin.random.Random
  * Owns the GL thread for the live camera:
  * camera (OES) -> accumulation buffer (slow shutter) -> film look -> viewfinder + video encoder.
  */
-class FilmRenderer {
+class FilmRenderer(private val context: Context) {
     private val thread = HandlerThread("FunCamGL").apply { start() }
     private val handler = Handler(thread.looper)
     private val executor = Executor { handler.post(it) }
 
     private lateinit var egl: EglCore
     private lateinit var pbuffer: EGLSurface
-    private lateinit var film: FilmProgram
+    private lateinit var film: FilmPipeline
+    private var outFbo: Fbo? = null
+    private var marksTex = 0
+    private var marksKey = ""
+    private var frameCount = 0
     private var inputProg = 0
     private var copyProg = 0
     private var blank = 0
@@ -77,7 +82,9 @@ class FilmRenderer {
     @Volatile var shutterSeconds: Float = 0f
     /** Image aspect shown in the viewfinder (may differ from params.ratio for multi-frame bodies). */
     @Volatile var previewImgAspect: Float = 0.75f
-    @Volatile var seed: Float = Random.nextFloat() * 100f
+    /** Seed of the next shot: decides light-leak shape and grain, so the preview matches the photo. */
+    @Volatile var seed: Int = Random.nextInt(1, Int.MAX_VALUE)
+    @Volatile var zoom: Float = 1f
     @Volatile var frozen = false
 
     init {
@@ -85,7 +92,7 @@ class FilmRenderer {
             egl = EglCore()
             pbuffer = egl.createPbuffer()
             egl.makeCurrent(pbuffer)
-            film = FilmProgram()
+            film = FilmPipeline(context)
             inputProg = GlUtil.program(Shaders.VERTEX, Shaders.INPUT)
             copyProg = GlUtil.program(Shaders.VERTEX, Shaders.COPY)
             blank = GlUtil.blankTexture()
@@ -211,26 +218,38 @@ class FilmRenderer {
 
             val p = params ?: return
             val time = (now - startNs) / 1e9f
+            frameCount++
+            val enc = encoder
+            val encodeNow = enc != null && (lastEncNs == 0L || now - lastEncNs >= 1_000_000_000L / encFps - 4_000_000L)
 
-            // 3. viewfinder
-            display?.let { surf ->
-                egl.makeCurrent(surf)
-                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-                GLES30.glViewport(0, 0, displayW, displayH)
-                drawFilm(dst.tex, p, displayW, displayH, time, liveSeed(time, p))
-                egl.swap(surf)
-            }
-
-            // 4. video encoder at the body's frame rate
-            encoder?.let { surf ->
-                val interval = 1_000_000_000L / encFps
-                if (lastEncNs == 0L || now - lastEncNs >= interval - 4_000_000L) {
-                    lastEncNs = if (lastEncNs == 0L) now else lastEncNs + interval.coerceAtMost(now - lastEncNs)
-                    egl.makeCurrent(surf)
+            if (enc != null) {
+                // render once at encoder size, then show the same pixels in the viewfinder
+                if (outFbo?.width != encW || outFbo?.height != encH) { outFbo?.release(); outFbo = Fbo(encW, encH) }
+                val o = outFbo!!
+                drawFilm(dst.tex, p, encW, encH, time, { o.bind() })
+                if (encodeNow) {
+                    lastEncNs = if (lastEncNs == 0L) now else lastEncNs + (1_000_000_000L / encFps).coerceAtMost(now - lastEncNs)
+                    egl.makeCurrent(enc)
                     GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
                     GLES30.glViewport(0, 0, encW, encH)
-                    drawFilm(dst.tex, p, encW, encH, time, liveSeed(time, p))
-                    egl.setPresentationTime(surf, now - encStartNs)
+                    copy(o.tex, flipY = false)
+                    egl.setPresentationTime(enc, now - encStartNs)
+                    egl.swap(enc)
+                }
+                display?.let { surf ->
+                    egl.makeCurrent(surf)
+                    GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+                    GLES30.glViewport(0, 0, displayW, displayH)
+                    copy(o.tex, flipY = false)
+                    egl.swap(surf)
+                }
+            } else {
+                display?.let { surf ->
+                    egl.makeCurrent(surf)
+                    drawFilm(dst.tex, p, displayW, displayH, time, {
+                        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+                        GLES30.glViewport(0, 0, displayW, displayH)
+                    })
                     egl.swap(surf)
                 }
             }
@@ -239,17 +258,28 @@ class FilmRenderer {
         }
     }
 
-    /** Video bodies get slowly wandering light leaks; photo bodies keep a fixed seed per shot. */
-    private fun liveSeed(time: Float, p: RenderParams): Float =
-        if (p.recipe.isVideo) seed + kotlin.math.floor(time / 3.5f) else seed
-
-    private fun drawFilm(src: Int, p: RenderParams, w: Int, h: Int, time: Float, seed: Float) {
+    private fun drawFilm(src: Int, p: RenderParams, w: Int, h: Int, time: Float, bindTarget: () -> Unit) {
         val imgAspect = previewImgAspect
         val spec = FrameSpec.compute(p.recipe.border, imgAspect, p.borderOn)
-        val crop = FrameSpec.crop(cameraAspect, imgAspect)
+        val crop = FrameSpec.crop(cameraAspect, imgAspect, zoom)
         updateStamp(p, imgAspect)
+        updateMarks(p, spec)
         val c2 = if (doubleTex != 0) FrameSpec.crop(doubleAspect, imgAspect) else null
-        film.draw(src, crop, p, spec, w, h, time, seed, false, doubleTex, c2, stampTex, blank)
+        val (sw, sh) = uprightSize()
+        // grain dances live (like a real viewfinder of film); the leak shape stays put for the next shot
+        film.render(src = src, srcW = sw, srcH = sh, srcCrop = crop, p = p, spec = spec, outW = w, outH = h,
+            bindTarget = bindTarget, time = time, seed = seed + frameCount, leakSeed = seed, flipY = false,
+            stampTex = stampTex, marksTex = marksTex, tex2 = doubleTex, tex2Crop = c2)
+    }
+
+    private fun updateMarks(p: RenderParams, spec: FrameSpec) {
+        val k = "${spec.border}|${p.recipe.edgeText}|${spec.outAspect}"
+        if (k == marksKey) return
+        marksKey = k
+        val w = 1080
+        val h = (1080 / spec.outAspect).toInt()
+        val bmp = StampRenderer.marks(spec.border, p.recipe.edgeText, w, h, spec.rect, 12)
+        if (bmp == null) { GlUtil.deleteTexture(marksTex); marksTex = 0 } else { marksTex = GlUtil.uploadBitmap(bmp, marksTex); bmp.recycle() }
     }
 
     private fun updateStamp(p: RenderParams, imgAspect: Float) {
@@ -330,7 +360,7 @@ class FilmRenderer {
         handler.post {
             try {
                 egl.makeCurrent(pbuffer)
-                accA?.release(); accB?.release(); grabFbo?.release()
+                accA?.release(); accB?.release(); grabFbo?.release(); outFbo?.release()
                 film.release()
                 display?.let { egl.releaseSurface(it) }
                 encoder?.let { egl.releaseSurface(it) }

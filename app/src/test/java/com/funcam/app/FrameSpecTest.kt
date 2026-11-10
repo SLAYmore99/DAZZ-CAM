@@ -50,9 +50,11 @@ class FrameSpecTest {
     }
 
     @Test fun rosterIsCompleteAndUnique() {
-        assertEquals(28, Cameras.all.size)
+        assertEquals(42, Cameras.all.size)
+        assertEquals(30, Cameras.all.count { !it.isVideo })
         assertEquals(Cameras.all.size, Cameras.all.map { it.id }.toSet().size)
         assertTrue(Cameras.all.all { it.ratios.isNotEmpty() })
-        assertTrue(Cameras.all.count { it.isVideo } >= 7)
+        assertEquals(12, Cameras.all.count { it.isVideo })
+        assertTrue(Cameras.all.mapNotNull { it.look.lut }.all { java.io.File("src/main/assets/luts/$it.png").exists() })
     }
 }

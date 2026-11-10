@@ -38,39 +38,32 @@
   #toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #0009; border-radius: 12px; padding: 6px 14px; text-align: center; width: max-content; max-width: 86%; opacity: 0; transition: opacity .3s; pointer-events: none; }
   #toast b { color: var(--amber); font-weight: 900; font-size: 15px; display: block; }
   #toast span { font-size: 11px; color: #ffffffd9; }
-  #zoom { flex: none; align-self: center; display: flex; gap: 2px; background: var(--panel); border-radius: 99px; padding: 3px; margin-top: 8px; height: 40px; align-items: center; }
-  #zoom button { width: 28px; height: 28px; border-radius: 50%; font-size: 10px; font-weight: 700; color: #fff; }
-  #zoom button.sel { width: 34px; height: 34px; background: var(--panel2); color: var(--amber); font-size: 11px; }
-  #msg { position: fixed; top: calc(env(safe-area-inset-top) + 90px); left: 50%; transform: translateX(-50%); background: #222e; padding: 8px 14px; border-radius: 12px; font-size: 13px; text-align: center; max-width: 86%; display: none; z-index: 50; }
-  #adjust { display: none; padding: 6px 10px 0; flex: none; }
-  #adjust .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-  .chip { background: var(--panel2); border-radius: 8px; padding: 6px 10px; font: 700 11px ui-monospace, Menlo, monospace; white-space: nowrap; }
-  .chip.sel { background: var(--amber); color: #000; }
-  #adjust .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px 0; }
-  #adjust input[type=range] { flex: 1; accent-color: var(--amber); }
-  #adjust .val { color: var(--amber); font: 12px ui-monospace, Menlo, monospace; min-width: 58px; text-align: right; }
-  .carousel { flex: none; padding-top: 8px; }
-  .carousel .head { display: flex; align-items: center; padding: 0 16px; }
-  .carousel .head b { color: var(--amber); font-weight: 900; font-size: 13px; text-transform: uppercase; }
-  .carousel .head span { color: var(--dim); font-size: 11px; flex: 1; }
-  .carousel .head button { background: var(--panel2); font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 6px; }
-  #strip { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 6px 12px 0; scroll-snap-type: x mandatory; scrollbar-width: none; }
-  #strip::-webkit-scrollbar, #adjust .chips::-webkit-scrollbar { display: none; }
-  #strip button { flex: none; width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; scroll-snap-align: start; border: 1.5px solid transparent; opacity: .8; }
-  #strip button.sel { width: 64px; height: 64px; background: var(--panel2); border-color: var(--amber); opacity: 1; }
-  #strip canvas { width: 42px; height: 30px; }
-  #strip button.sel canvas { width: 54px; height: 39px; }
-  .bottom { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; }
-  #thumb { width: 50px; height: 50px; border-radius: 10px; background: var(--panel2) center/cover; border: 1px solid #8d877e80; display: grid; place-items: center; }
+  #dials { flex: none; display: flex; justify-content: center; gap: 8px; padding-top: 10px; }
+  #dials button { height: 38px; min-width: 38px; padding: 0 12px; border-radius: 19px; background: var(--panel2); font-weight: 700; font-size: 12px; border: 1px solid transparent; }
+  #dials button.sel { background: var(--amber); color: #000; }
+  #dials button.changed { border-color: #ffb23fb3; }
+  #dials svg { width: 18px; height: 18px; fill: currentColor; vertical-align: middle; }
+  #ruler { flex: none; height: 58px; display: grid; place-items: center; }
+  #ruler .desc { color: var(--dim); font-size: 11px; text-align: center; padding: 0 36px; line-height: 14px; }
+  #ruler .val { color: var(--amber); font: 12px ui-monospace, Menlo, monospace; text-align: center; }
+  #ruler canvas { width: 280px; height: 30px; touch-action: none; display: block; }
+  #ruler .lenses { display: flex; gap: 8px; }
+  #ruler .lenses button { width: 40px; height: 40px; border-radius: 50%; background: var(--panel); font-weight: 700; font-size: 13px; }
+  #ruler .lenses button.sel { background: var(--amber); color: #000; }
+  .bottom { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 12px 22px; }
+  .bottom .side { width: 80px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #thumb { width: 52px; height: 52px; border-radius: 10px; background: var(--panel2) center/cover; border: 1px solid #8d877e80; display: grid; place-items: center; }
   #thumb svg { width: 24px; fill: var(--dim); }
-  #shutter { width: 78px; height: 78px; border-radius: 50%; border: 4px solid #fff; padding: 6px; }
+  #flip svg { width: 22px; fill: var(--text); }
+  #shutter { width: 82px; height: 82px; border-radius: 50%; border: 4px solid #fff; padding: 7px; }
   #shutter i { display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff; transition: all .15s; }
   #shutter.video i { background: var(--red); }
-  #shutter.recording i { width: 28px; height: 28px; margin: auto; border-radius: 6px; margin-top: 19px; }
+  #shutter.recording i { width: 28px; height: 28px; margin: auto; border-radius: 6px; margin-top: 20px; }
+  #shutter.busy { transform: scale(.92); }
   #shutter.busy i { background: var(--dim); }
-  #shutter:active i { transform: scale(.92); }
-  #flip { width: 50px; height: 50px; border-radius: 50%; background: var(--panel2); display: grid; place-items: center; }
-  #flip svg { width: 26px; fill: var(--text); }
+  #body { border-radius: 12px; padding: 4px 0; }
+  #body canvas { width: 70px; height: 50px; display: block; }
+  #body b { color: var(--amber); font-size: 11px; display: block; text-align: center; white-space: nowrap; }
   /* sheets */
   .scrim { position: fixed; inset: 0; background: #0008; display: none; z-index: 20; }
   .sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 82%; background: var(--bg); border-radius: 20px 20px 0 0; z-index: 30;
@@ -79,16 +72,17 @@
   .sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: #555; margin: 0 auto 12px; }
   .sheet h2 { margin: 0; font-size: 20px; font-weight: 900; }
   .sheet .sub { color: var(--dim); font-size: 12px; margin: 2px 0 10px; }
-  .tabs { display: flex; gap: 16px; overflow-x: auto; border-bottom: 1px solid #333; margin: 0 -18px 12px; padding: 0 18px; scrollbar-width: none; }
-  .tabs button { padding: 10px 0; font-weight: 700; white-space: nowrap; border-bottom: 2px solid transparent; }
-  .tabs button.sel { color: var(--amber); border-color: var(--amber); }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 6px; }
+  .tabs button { padding: 6px 10px; font-weight: 700; font-size: 11px; border-radius: 14px; background: var(--panel2); }
+  .cathead { grid-column: 1 / -1; color: var(--amber); font-weight: 900; font-size: 12px; letter-spacing: 1.5px; padding-top: 10px; }
   .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .card { background: var(--panel); border-radius: 12px; padding: 8px; text-align: center; border: 1.5px solid transparent; }
   .card.sel { border-color: var(--amber); }
-  .card canvas { width: 76px; height: 55px; }
+  .card canvas { width: 84px; height: 60px; }
   .card b { display: block; font-size: 12px; }
   .card.sel b { color: var(--amber); }
-  .card small { display: block; color: var(--dim); font-size: 9px; line-height: 11px; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .card small { display: none; }
+  .card_unused { display: block; color: var(--dim); font-size: 9px; line-height: 11px; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .toggle { display: flex; align-items: center; padding: 9px 0; gap: 12px; }
   .toggle div { flex: 1; }
   .toggle b { display: block; font-size: 15px; }
@@ -126,6 +120,8 @@
   <symbol id="i-timer" viewBox="0 0 24 24"><path d="M15 1H9v2h6zm-4 13h2V8h-2zm8.03-6.61 1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.96 8.96 0 0 0 12 4a9 9 0 1 0 9 9c0-2.12-.74-4.07-1.97-5.61M12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7"/></symbol>
   <symbol id="i-tune" viewBox="0 0 24 24"><path d="M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2z"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="m19 9 1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m11.99 18.54-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27z"/></symbol>
+  <symbol id="i-therm" viewBox="0 0 24 24"><path d="M15 13V5a3 3 0 0 0-6 0v8a5 5 0 1 0 6 0m-3-9a1 1 0 0 1 1 1v3h-2V5a1 1 0 0 1 1-1"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4"/></symbol>
   <symbol id="i-flip" viewBox="0 0 24 24"><path d="M16 7h-1l-1-1h-4L9 7H8a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2m-4 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4M8.57.51l4.48 4.48V2.04c4.72.47 8.48 4.23 8.94 8.95h2C23.36 4.89 17.79-.34 8.57.51m2.38 21.45c-4.72-.47-8.48-4.23-8.94-8.95H0c.63 6.1 6.21 11.33 15.43 10.48l-4.48-4.48z"/></symbol>
   <symbol id="i-photos" viewBox="0 0 24 24"><path d="M22 16V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2m-11-4 2.03 2.71L16 11l4 5H8zM2 6v14a2 2 0 0 0 2 2h14v-2H4V6z"/></symbol>
@@ -136,8 +132,8 @@
     <button class="ib" id="bFlash" aria-label="Flash"><svg><use href="#i-flashoff"/></svg></button>
     <button class="ib" id="bTimer" aria-label="Timer"><svg><use href="#i-timer"/></svg></button>
     <button class="chip-ratio" id="bRatio">3:4</button>
-    <button class="ib" id="bAdjust" aria-label="Adjust"><svg><use href="#i-tune"/></svg></button>
-    <button class="ib" id="bAcc" aria-label="Accessories"><svg><use href="#i-spark"/></svg></button>
+    <button class="ib" id="bDouble" aria-label="Double exposure"><svg><use href="#i-layers"/></svg></button>
+    <button class="ib" id="bAcc" aria-label="Lenses and filters"><svg><use href="#i-spark"/></svg></button>
     <button class="ib" id="bMore" aria-label="More"><svg><use href="#i-more"/></svg></button>
   </div>
   <div id="vfwrap">
@@ -151,16 +147,15 @@
       <div id="blink"></div>
     </div>
   </div>
-  <div id="zoom"></div>
-  <div id="adjust"><div class="chips"></div><div class="row"><input type="range"><span class="val"></span></div></div>
-  <div class="carousel">
-    <div class="head"><b id="camName"></b><span id="camCat"></span><button id="bAll">ALL CAMERAS</button></div>
-    <div id="strip"></div>
-  </div>
+  <div id="dials"></div>
+  <div id="ruler"></div>
   <div class="bottom">
-    <button id="thumb" aria-label="Your photos"><svg viewBox="0 0 24 24"><use href="#i-photos"/></svg></button>
+    <div class="side">
+      <button id="thumb" aria-label="Your photos"><svg viewBox="0 0 24 24"><use href="#i-photos"/></svg></button>
+      <button id="flip" aria-label="Flip camera"><svg viewBox="0 0 24 24"><use href="#i-flip"/></svg></button>
+    </div>
     <button id="shutter" aria-label="Shutter"><i></i></button>
-    <button id="flip" aria-label="Flip camera"><svg viewBox="0 0 24 24"><use href="#i-flip"/></svg></button>
+    <button class="side" id="body" aria-label="Choose camera"><canvas width="140" height="100"></canvas><b id="camName"></b></button>
   </div>
 </div>
 
@@ -172,9 +167,9 @@
   <button id="mSettings">Settings</button>
 </div>
 <div class="scrim" id="scrim"></div>
-<div class="sheet" id="sPicker"><div class="grab"></div><h2>Cameras</h2><div class="sub">Every camera is free in FUN CAM.</div><div class="tabs"></div><div class="cards"></div></div>
-<div class="sheet" id="sAcc"><div class="grab"></div><h2>Accessories</h2><div class="sub">Stack lenses and filters on any camera.</div><div class="list"></div><b style="display:block;margin-top:10px">Flash colour</b><div class="gels"></div></div>
-<div class="sheet" id="sSettings"><div class="grab"></div><h2>Settings</h2><div class="list"></div>
+<div class="sheet" id="sPicker"><div class="grab"></div><h2>Cameras</h2><div class="sub" id="pickSub"></div><div class="tabs"></div><div class="cards"></div></div>
+<div class="sheet" id="sAcc"><div class="grab"></div><h2>Lenses &amp; filters</h2><div class="sub">Stack them on any camera.</div><div class="list"></div><b style="display:block;margin-top:10px">Flash colour</b><div class="gels"></div></div>
+<div class="sheet" id="sSettings"><div class="grab"></div><h2>Settings</h2><div class="list"></div><b style="display:block;margin-top:10px">Instant frame</b><div class="gels" id="frames"></div>
   <p class="sub" style="margin-top:16px">FUN CAM is free and open source (MIT). This is the iPhone/web test version — photos are kept on this device until you save them to Photos.</p></div>
 <div class="sheet" id="sRoll"><div class="grab"></div><h2>Your photos</h2><div class="sub">Tap a shot, then “Save” to put it in your Photos app.</div><div class="rollgrid"></div></div>
 <div id="viewer"><div class="media"></div><div class="bar"><button id="vClose">Close</button><button id="vDelete">Delete</button><button id="vSave" class="primary">Save</button></div></div>
@@ -183,7 +178,7 @@
 <div id="start">
   <img src="icon.svg" width="96" height="96" alt="">
   <h1>FUN CAM</h1>
-  <p>Retro film cameras — 28 bodies, live film looks, slow-shutter video. Everything free.</p>
+  <p>42 retro cameras — real film colour, light leaks, date stamps, slow-shutter video. Everything free.</p>
   <button id="bStart">Open camera</button>
   <p class="err" id="startErr"></p>
 </div>

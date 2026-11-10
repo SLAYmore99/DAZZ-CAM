@@ -32,6 +32,7 @@ import com.funcam.app.media.Negatives
 import com.funcam.app.model.Accessories
 import com.funcam.app.model.CaptureMode
 import com.funcam.app.model.Cameras
+import com.funcam.app.model.InstantFrame
 import com.funcam.app.model.Ratio
 import com.funcam.app.model.Recipe
 import com.funcam.app.video.LiveRecorder
@@ -48,8 +49,8 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx: Context get() = getApplication()
     private val prefs = app.getSharedPreferences("funcam", Context.MODE_PRIVATE)
 
-    val renderer = FilmRenderer()
-    val processor = StillProcessor()
+    val renderer = FilmRenderer(app)
+    val processor = StillProcessor(app)
     val controller = CameraController(app, renderer)
     private val sound = MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
 
@@ -60,7 +61,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var acc by mutableStateOf(Accessories(lightLeaks = prefs.getBoolean("leaks", true)))
         private set
-    var flashOn by mutableStateOf(false)
+    var flashOn by mutableStateOf(recipe.flashDefault)
     var timer by mutableIntStateOf(0)
     var grid by mutableStateOf(prefs.getBoolean("grid", false))
     var exposure by mutableFloatStateOf(0f)
@@ -83,6 +84,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     var shutterSound by mutableStateOf(prefs.getBoolean("sound", true))
     var stabilize by mutableStateOf(prefs.getBoolean("stabilize", true))
     var recordAudio by mutableStateOf(prefs.getBoolean("audio", true))
+    var instantFrame by mutableStateOf(runCatching { InstantFrame.valueOf(prefs.getString("iframe", "WHITE")!!) }.getOrDefault(InstantFrame.WHITE))
     /** Extra preview rotation in 90° steps — a fallback for devices that report orientation oddly. */
     var previewRotationFix by mutableIntStateOf(prefs.getInt("rotfix", 0))
         private set
@@ -177,13 +179,21 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         ratioIndex = prefs.getInt("ratio_" + r.id, 0).coerceIn(0, r.ratios.lastIndex)
         prefs.edit().putString("recipe", r.id).apply()
         applyRecipeDefaults(r)
-        if (!r.isVideo) controller.setTorch(false)
+        flashOn = r.flashDefault
+        controller.setTorch(r.isVideo && flashOn)
         sync()
+    }
+
+    /** Swipe on the viewfinder: next / previous camera. */
+    fun stepCamera(dir: Int) {
+        val list = Cameras.all
+        val i = list.indexOfFirst { it.id == recipe.id }
+        selectRecipe(list[(i + dir + list.size) % list.size])
     }
 
     private fun applyRecipeDefaults(r: Recipe) {
         when (r.id) {
-            "dreamblur" -> { shutter = 1 / 4f; fps = 12; iso = 0 }
+            "dreamblur" -> { shutter = 1 / 4f; fps = 12; iso = 160 }
             else -> { shutter = 0f; iso = 0; fps = r.videoFps }
         }
         applyManual()
@@ -233,7 +243,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
             .putBoolean("stamp", stampOn).putBoolean("border", borderOn)
             .putBoolean("negatives", saveNegatives).putBoolean("sound", shutterSound)
             .putBoolean("stabilize", stabilize).putBoolean("audio", recordAudio)
-            .putBoolean("grid", grid).apply()
+            .putBoolean("grid", grid).putString("iframe", instantFrame.name).apply()
         sync()
     }
 
@@ -244,7 +254,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
 
     fun params(flashFired: Boolean = flashOn, r: Recipe = recipe, rt: Ratio = ratio) = RenderParams(
         recipe = r, ratio = rt, acc = acc, borderOn = borderOn, stampOn = stampOn,
-        exposure = exposure, temp = temp, tint = tint, flashFired = flashFired,
+        exposure = exposure, temp = temp, tint = tint, flashFired = flashFired, instantFrame = instantFrame,
     )
 
     /** Push the current look to the live renderer. */
@@ -329,28 +339,30 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
                         developAndSave(raw, params(fired, r), ratio.value, seed, System.currentTimeMillis(), null)
                     }
                 }
-                CaptureMode.HALF -> {
+                CaptureMode.HALF, CaptureMode.COLLAGE -> {
+                    val need = if (r.capture == CaptureMode.HALF) 2 else 4
                     click()
                     val raw = try { controller.takePicture(fired) } catch (e: Exception) { grabRaw() }
                     pendingFrames.add(raw)
-                    if (pendingFrames.size < 2) { multiProgress = "1/2"; return }
-                    val composite = compose(pendingFrames, cols = 2, rows = 1, cell = ratio.value)
+                    if (pendingFrames.size < need) { multiProgress = "${pendingFrames.size}/$need"; return }
+                    val composite = if (need == 2) compose(pendingFrames, 2, 1, ratio.value)
+                    else compose(pendingFrames, 2, 2, ratio.value, background = Color.rgb(246, 244, 238), gapFrac = 0.04f, padFrac = 0.06f)
                     resetMulti()
                     developAndSave(composite, params(fired, r), composite.width.toFloat() / composite.height, seed,
                         System.currentTimeMillis(), null)
                 }
-                CaptureMode.QUAD -> {
+                CaptureMode.GRID16 -> {
                     val frames = ArrayList<Bitmap>()
                     if (fired) controller.setTorch(true)
-                    repeat(4) { i ->
-                        multiProgress = "${i + 1}/4"
-                        click()
+                    click()
+                    repeat(16) { i ->
+                        multiProgress = "${i + 1}/16"
                         frames.add(grabRaw())
-                        delay(280)
+                        delay(110)
                     }
                     if (fired) controller.setTorch(false)
                     multiProgress = null
-                    val composite = compose(frames, cols = 2, rows = 2, cell = ratio.value)
+                    val composite = compose(frames, 4, 4, ratio.value, gapFrac = 0.02f)
                     frames.forEach { it.recycle() }
                     developAndSave(composite, params(fired, r), composite.width.toFloat() / composite.height, seed,
                         System.currentTimeMillis(), null)
@@ -358,7 +370,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
                 CaptureMode.WIGGLE -> {
                     val frames = ArrayList<Bitmap>()
                     click()
-                    repeat(3) { frames.add(grabRaw()); delay(110) }
+                    repeat(4) { frames.add(grabRaw()); delay(90) }
                     val file = File(ctx.cacheDir, "wiggle_${System.currentTimeMillis()}.mp4")
                     processor.encodeWiggle(frames, params(fired, r), ratio.value, seed, file)
                     val thumb = withContext(Dispatchers.IO) { videoThumb(file) }
@@ -371,19 +383,24 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
             message = "Capture failed: ${e.message}"
         } finally {
             busy = false
-            renderer.seed = Random.nextFloat() * 100f
+            renderer.seed = Random.nextInt(1, Int.MAX_VALUE)
         }
     }
 
     /** Lays frames out on black with thin gaps, each centre-cropped to [cell] aspect. */
-    private suspend fun compose(frames: List<Bitmap>, cols: Int, rows: Int, cell: Float): Bitmap =
+    private suspend fun compose(
+        frames: List<Bitmap>, cols: Int, rows: Int, cell: Float,
+        background: Int = Color.rgb(12, 11, 10), gapFrac: Float = 0.03f, padFrac: Float = 0f,
+    ): Bitmap =
         withContext(Dispatchers.Default) {
             val cellH = minOf(frames.minOf { it.height }, (frames.minOf { it.width } / cell).toInt(), 2400 / rows)
             val cellW = (cellH * cell).toInt()
-            val gap = (cellH * 0.03f).toInt()
-            val out = Bitmap.createBitmap(cols * cellW + (cols - 1) * gap, rows * cellH + (rows - 1) * gap, Bitmap.Config.ARGB_8888)
+            val gap = (cellH * gapFrac).toInt()
+            val pad = (cellH * padFrac).toInt()
+            val out = Bitmap.createBitmap(cols * cellW + (cols - 1) * gap + 2 * pad, rows * cellH + (rows - 1) * gap + 2 * pad, Bitmap.Config.ARGB_8888)
             val c = Canvas(out)
-            c.drawColor(Color.rgb(12, 11, 10))
+            c.drawColor(background)
+            c.translate(pad.toFloat(), pad.toFloat())
             frames.forEachIndexed { i, f ->
                 val fa = f.width.toFloat() / f.height
                 val srcRect = if (fa > cell) {
@@ -401,7 +418,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     private suspend fun developAndSave(
-        raw: Bitmap, p: RenderParams, imgAspect: Float, seed: Float, time: Long, double: Bitmap?,
+        raw: Bitmap, p: RenderParams, imgAspect: Float, seed: Int, time: Long, double: Bitmap?,
     ) {
         val out = processor.develop(raw, p, imgAspect, seed, time, double)
         val uri = withContext(Dispatchers.IO) {
@@ -409,7 +426,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
                 Negatives.save(ctx, raw, Negative(
                     id = time.toString(), image = File(""), recipeId = p.recipe.id, ratioW = p.ratio.w, ratioH = p.ratio.h,
                     imgAspect = imgAspect, exposure = p.exposure, temp = p.temp, tint = p.tint, flash = p.flashFired,
-                    seed = seed, time = time,
+                    seed = seed.toFloat(), time = time,
                 ))
             }
             MediaSaver.saveJpeg(ctx, out, p.recipe.name)
@@ -496,7 +513,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
                 val loaded = withContext(Dispatchers.IO) { MediaSaver.loadBitmap(ctx, uri) }
                 if (loaded == null) { message = "Couldn't open that photo"; return@launch }
                 val (bmp, taken) = loaded
-                developAndSave(bmp, params(false, r), ratio.value, Random.nextFloat() * 100f,
+                developAndSave(bmp, params(false, r), ratio.value, Random.nextInt(1, Int.MAX_VALUE),
                     taken ?: System.currentTimeMillis(), null)
                 message = "Developed with ${r.name}"
             } catch (e: Exception) {
@@ -519,7 +536,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         val rt = if (composite || original in r.ratios) original else r.ratios.first()
         val p = RenderParams(r, rt, acc, borderOn, stampOn, exp, tmp, tnt, n.flash)
         val aspect = if (composite) n.imgAspect else rt.value
-        return processor.develop(src, p, aspect, n.seed, n.time, null, maxLong).also { src.recycle() }
+        return processor.develop(src, p, aspect, n.seed.toInt(), n.time, null, maxLong).also { src.recycle() }
     }
 
     suspend fun redevelop(n: Negative, r: Recipe, exp: Float, tmp: Float, tnt: Float): Boolean {

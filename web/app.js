@@ -1,31 +1,36 @@
 import { CAMERAS, SHUTTER_SPEEDS, FPS_VALUES } from './data.js';
-import { FilmGL, frameSpec } from './gl.js';
+import { FilmGL, frameSpec, INSTANT_FRAMES } from './gl.js';
 import { drawCameraIcon } from './icons.js';
 import * as roll from './roll.js';
 
 const $ = s => document.querySelector(s);
 const CAT = { DIGITAL: 'Digital', VIDEO: 'Video', V135: 'Vintage 135', V120: 'Vintage 120', INST: 'Inst' };
 const GELS = { WHITE: [1, 1, 1], RED: [1, 0.25, 0.3], BLUE: [0.3, 0.5, 1], GREEN: [0.35, 1, 0.45], YELLOW: [1, 0.85, 0.3], PURPLE: [0.75, 0.35, 1] };
-const byId = id => CAMERAS.find(c => c.id === id) || CAMERAS.find(c => c.id === 'funsaver');
+const LENSES = [1, 1.46, 2.08, 3.2];   // 24 / 35 / 50 / 77 mm equivalents (digital on the web)
+const byId = id => CAMERAS.find(c => c.id === id) || CAMERAS.find(c => c.id === 'sure85');
 const shutterLabel = s => s >= 1 ? `${Math.round(s)}"` : `1/${Math.round(1 / s)}`;
+const focal = z => `${Math.round(24 * z)}`;
+const newSeed = () => (Math.random() * 2 ** 31) | 0;
 
 // ------------------------------------------------------------------ state
-const saved = JSON.parse(localStorage.getItem('funcam') || '{}');
+const saved = JSON.parse(localStorage.getItem('funcam2') || '{}');
 const S = {
   recipe: byId(saved.recipe), ratioIdx: saved.ratioIdx || {}, flash: false, timer: 0, grid: !!saved.grid,
   exposure: 0, temp: 0, tint: 0, shutter: 0, fps: 30, zoom: 1, front: false,
   stampOn: saved.stampOn ?? true, borderOn: saved.borderOn ?? true, sound: saved.sound ?? true, audio: saved.audio ?? true,
-  acc: { fisheye: false, prism: false, star: false, nd: false, doubleExposure: false, lightLeaks: saved.leaks ?? true, gelName: 'WHITE' },
-  busy: false, recording: false, panel: null, adjustOpen: false,
+  instantFrame: saved.instantFrame || 'WHITE',
+  acc: { fisheyeW: false, fisheyeC: false, prism: false, star: false, nd: false, doubleExposure: false, lightLeaks: saved.leaks ?? true, gelName: 'WHITE' },
+  busy: false, recording: false, dial: null,
 };
-const persist = () => localStorage.setItem('funcam', JSON.stringify({
+S.flash = S.recipe.flashDefault;
+const persist = () => localStorage.setItem('funcam2', JSON.stringify({
   recipe: S.recipe.id, ratioIdx: S.ratioIdx, grid: S.grid, stampOn: S.stampOn, borderOn: S.borderOn,
-  sound: S.sound, audio: S.audio, leaks: S.acc.lightLeaks,
+  sound: S.sound, audio: S.audio, leaks: S.acc.lightLeaks, instantFrame: S.instantFrame,
 }));
-const ratio = () => { const r = S.recipe.ratios; const [w, h] = r[Math.min(S.ratioIdx[S.recipe.id] || 0, r.length - 1)]; return { w, h, v: w / h, label: `${w}:${h}` }; };
+const ratio = () => { const r = S.recipe.ratios; const [w, h] = r[Math.min(S.ratioIdx[S.recipe.id] || 0, r.length - 1)]; return { w, h, v: w / h, label: w === 239 ? '2.39' : `${w}:${h}` }; };
 const params = (flashFired = S.flash && !S.recipe.isVideo, recipe = S.recipe) => ({
   recipe, borderOn: S.borderOn, stampOn: S.stampOn, exposure: S.exposure, temp: S.temp, tint: S.tint, flashFired,
-  acc: { ...S.acc, gel: GELS[S.acc.gelName] },
+  instantFrame: S.instantFrame, acc: { ...S.acc, gel: GELS[S.acc.gelName] },
 });
 
 let film, video, stream;
@@ -57,7 +62,7 @@ let lastLayout = '';
 function layout() {
   const wrap = $('#vfwrap'), vf = $('#vf');
   const spec = frameSpec(S.recipe.border, ratio().v, S.borderOn);
-  const W = wrap.clientWidth - 24, H = wrap.clientHeight;
+  const W = wrap.clientWidth - 28, H = wrap.clientHeight;
   let w = W, h = W / spec.outAspect;
   if (h > H) { h = H; w = H * spec.outAspect; }
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -94,20 +99,16 @@ function sync() {
   $('#bFlash use').setAttribute('href', S.flash ? '#i-flash' : '#i-flashoff');
   $('#bFlash').classList.toggle('on', S.flash);
   $('#bTimer').classList.toggle('on', S.timer > 0);
-  $('#bTimer').dataset.t = S.timer;
-  $('#bTimer').title = S.timer ? `${S.timer}s` : 'Off';
-  const r = ratio();
-  $('#bRatio').textContent = r.label;
+  $('#bRatio').textContent = ratio().label;
   $('#bRatio').classList.toggle('fixed', S.recipe.ratios.length < 2);
-  $('#bAdjust').classList.toggle('on', S.adjustOpen || !!(S.exposure || S.temp || S.tint));
-  $('#bAcc').classList.toggle('on', ['fisheye', 'prism', 'star', 'nd', 'doubleExposure'].some(k => S.acc[k]));
+  $('#bDouble').classList.toggle('on', S.acc.doubleExposure);
+  $('#bAcc').classList.toggle('on', ['fisheyeW', 'fisheyeC', 'prism', 'star', 'nd'].some(k => S.acc[k]));
   $('#camName').textContent = S.recipe.name;
-  $('#camCat').textContent = '  ·  ' + CAT[S.recipe.category];
+  drawCameraIcon($('#body canvas'), S.recipe);
   $('#shutter').className = (S.recipe.isVideo ? 'video' : '') + (S.recording ? ' recording' : '') + (S.busy && !S.recording ? ' busy' : '');
   $('#mGrid').textContent = S.grid ? 'Hide grid' : 'Show grid';
-  document.querySelectorAll('#strip button').forEach(b => b.classList.toggle('sel', b.dataset.id === S.recipe.id));
-  renderZoom();
-  renderAdjust();
+  renderDials();
+  renderRuler();
 }
 
 function message(text) {
@@ -119,9 +120,9 @@ function message(text) {
 function toast() {
   const t = $('#toast');
   t.querySelector('b').textContent = S.recipe.name.toUpperCase();
-  t.querySelector('span').textContent = S.recipe.description;
+  t.querySelector('span').textContent = '';
   t.style.opacity = 1;
-  clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.opacity = 0), 1600);
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.opacity = 0), 1400);
 }
 
 // ------------------------------------------------------------------ cameras
@@ -130,46 +131,35 @@ function selectRecipe(r) {
   if (r.id === S.recipe.id) return;
   resetMulti();
   S.recipe = r;
+  S.flash = r.flashDefault;
   if (r.id === 'dreamblur') { S.shutter = 1 / 4; S.fps = 12; } else { S.shutter = 0; S.fps = r.videoFps; }
+  if (!r.manual && ['shutter', 'fps'].includes(S.dial)) S.dial = null;
   persist(); sync(); toast();
   film?.resetAccumulation();
-  const b = document.querySelector(`#strip button[data-id="${r.id}"]`);
-  b?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
 }
-
-function buildStrip() {
-  const strip = $('#strip');
-  for (const r of CAMERAS) {
-    const b = document.createElement('button');
-    b.dataset.id = r.id; b.setAttribute('aria-label', r.name);
-    const c = document.createElement('canvas'); c.width = 108; c.height = 78;
-    drawCameraIcon(c, r);
-    b.appendChild(c);
-    b.onclick = () => selectRecipe(r);
-    strip.appendChild(b);
-  }
-}
+const stepCamera = dir => { const i = CAMERAS.findIndex(c => c.id === S.recipe.id); selectRecipe(CAMERAS[(i + dir + CAMERAS.length) % CAMERAS.length]); };
 
 function buildPicker() {
   const sheet = $('#sPicker'), tabs = sheet.querySelector('.tabs'), cards = sheet.querySelector('.cards');
-  let tab = S.recipe.category;
+  $('#pickSub').textContent = `${CAMERAS.length} cameras · all free`;
   const render = () => {
     tabs.innerHTML = ''; cards.innerHTML = '';
     for (const [k, label] of Object.entries(CAT)) {
-      const t = document.createElement('button'); t.textContent = label; t.className = k === tab ? 'sel' : '';
-      t.onclick = () => { tab = k; render(); };
+      const t = document.createElement('button'); t.textContent = label;
+      t.onclick = () => cards.querySelector(`[data-cat="${k}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       tabs.appendChild(t);
-    }
-    for (const r of CAMERAS.filter(c => c.category === tab)) {
-      const d = document.createElement('button'); d.className = 'card' + (r.id === S.recipe.id ? ' sel' : '');
-      const c = document.createElement('canvas'); c.width = 152; c.height = 110; drawCameraIcon(c, r);
-      d.append(c);
-      d.insertAdjacentHTML('beforeend', `<b>${r.name}</b><small>${r.description}</small>`);
-      d.onclick = () => { selectRecipe(r); closeSheets(); };
-      cards.appendChild(d);
+      const h = document.createElement('div'); h.className = 'cathead'; h.dataset.cat = k; h.textContent = label.toUpperCase();
+      cards.appendChild(h);
+      for (const r of CAMERAS.filter(c => c.category === k)) {
+        const d = document.createElement('button'); d.className = 'card' + (r.id === S.recipe.id ? ' sel' : '');
+        const c = document.createElement('canvas'); c.width = 168; c.height = 120; drawCameraIcon(c, r);
+        d.append(c); d.insertAdjacentHTML('beforeend', `<b>${r.name}</b>`);
+        d.onclick = () => { selectRecipe(r); closeSheets(); };
+        cards.appendChild(d);
+      }
     }
   };
-  return () => { tab = S.recipe.category; render(); openSheet(sheet); };
+  return () => { render(); openSheet(sheet); setTimeout(() => cards.querySelector('.sel')?.scrollIntoView({ block: 'center' }), 320); };
 }
 
 // ------------------------------------------------------------------ sheets
@@ -183,25 +173,29 @@ function toggleRow(title, sub, get, set) {
   const row = document.createElement('div'); row.className = 'toggle';
   row.innerHTML = `<div><b>${title}</b><small>${sub}</small></div><span class="sw"></span>`;
   const sw = row.querySelector('.sw');
-  const paint = () => sw.classList.toggle('on', !!get());
-  row.onclick = () => { set(!get()); paint(); persist(); sync(); };
-  paint();
+  row.paint = () => sw.classList.toggle('on', !!get());
+  row.onclick = () => { set(!get()); row.parentElement.querySelectorAll('.toggle').forEach(r => r.paint()); persist(); sync(); };
+  row.paint();
   return row;
 }
 
 function buildAcc() {
   const sheet = $('#sAcc'), list = sheet.querySelector('.list'), gels = sheet.querySelector('.gels');
   const items = [
-    ['fisheye', 'Fisheye', 'Circular ultra-wide lens'], ['prism', 'Prism', 'Rainbow ghost reflections'],
-    ['star', 'Star filter', 'Starbursts on bright lights'], ['nd', 'ND filter', 'Darker exposure for slow shutters in daylight'],
-    ['doubleExposure', 'Double exposure', 'Layer two shots in one frame'], ['lightLeaks', 'Light leaks', 'Random warm leaks on film bodies'],
+    ['fisheyeW', 'Fisheye W', 'Full-frame bulging ultra-wide'], ['fisheyeC', 'Fisheye C', 'Circular fisheye in a black frame'],
+    ['prism', 'Prism', 'Rainbow ghost reflections'], ['star', 'Star', 'Starbursts on bright lights'],
+    ['nd', 'ND filter', 'Darker exposure for slow shutters in daylight'], ['lightLeaks', 'Light leaks', 'Random warm leaks on film cameras'],
   ];
-  for (const [k, t, s] of items) list.appendChild(toggleRow(t, s, () => S.acc[k], v => { if (k === 'doubleExposure') resetMulti(); S.acc[k] = v; }));
+  for (const [k, t, s] of items) list.appendChild(toggleRow(t, s, () => S.acc[k], v => {
+    S.acc[k] = v;
+    if (v && k === 'fisheyeW') S.acc.fisheyeC = false;
+    if (v && k === 'fisheyeC') S.acc.fisheyeW = false;
+  }));
   const paintGels = () => gels.querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.g === S.acc.gelName));
   for (const [name, c] of Object.entries(GELS)) {
     const b = document.createElement('button'); b.dataset.g = name;
     b.style.background = `rgb(${c.map(v => v * 255).join(',')})`;
-    b.onclick = () => { S.acc.gelName = name; if (!S.flash) S.flash = true; paintGels(); sync(); };
+    b.onclick = () => { S.acc.gelName = name; S.flash = true; paintGels(); sync(); };
     gels.appendChild(b);
   }
   paintGels();
@@ -215,54 +209,85 @@ function buildSettings() {
     toggleRow('Shutter sound', 'Click when you take a photo', () => S.sound, v => (S.sound = v)),
     toggleRow('Record audio', 'Microphone sound in videos', () => S.audio, v => (S.audio = v)),
   );
+  const fr = $('#frames');
+  const paint = () => fr.querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.f === S.instantFrame));
+  for (const [k, c] of Object.entries(INSTANT_FRAMES)) {
+    const b = document.createElement('button'); b.dataset.f = k; b.style.background = c; b.style.borderRadius = '6px';
+    b.onclick = () => { S.instantFrame = k; persist(); paint(); sync(); };
+    fr.appendChild(b);
+  }
+  paint();
 }
 
-// ------------------------------------------------------------------ adjust panel
-function renderAdjust() {
-  const box = $('#adjust');
-  box.style.display = S.adjustOpen ? 'block' : 'none';
-  if (!S.adjustOpen) return;
-  const r = S.recipe;
-  const chips = [['exposure', `EXP ${fmt(S.exposure)}`], ['temp', `TEMP ${fmt(S.temp)}`], ['tint', `TINT ${fmt(S.tint)}`]];
-  if (r.manual) {
-    chips.push(['shutter', 'S ' + (S.shutter ? shutterLabel(S.shutter) : 'AUTO')]);
-    if (r.isVideo) chips.push(['fps', `${S.fps} FPS`]);
+// ------------------------------------------------------------------ dials + ruler
+function renderDials() {
+  const box = $('#dials'); box.innerHTML = '';
+  const add = (id, html, changed) => {
+    const b = document.createElement('button'); b.innerHTML = html;
+    b.className = (S.dial === id ? 'sel' : '') + (changed && S.dial !== id ? ' changed' : '');
+    b.onclick = () => { S.dial = S.dial === id ? null : id; sync(); };
+    box.appendChild(b);
+  };
+  add('wb', '<svg viewBox="0 0 24 24"><use href="#i-therm"/></svg>', S.temp !== 0);
+  add('lens', focal(S.zoom), false);
+  if (S.recipe.manual) {
+    add('shutter', 'S ' + (S.shutter ? shutterLabel(S.shutter) : 'A'), S.shutter !== 0);
+    if (S.recipe.isVideo) add('fps', `${S.fps}fps`, false);
   }
-  if (!chips.some(c => c[0] === S.panel)) S.panel = 'exposure';
-  const c = box.querySelector('.chips'); c.innerHTML = '';
-  for (const [k, label] of chips) {
-    const b = document.createElement('button'); b.className = 'chip' + (k === S.panel ? ' sel' : ''); b.textContent = label;
-    b.onclick = () => { S.panel = k; renderAdjust(); };
-    c.appendChild(b);
-  }
-  const range = box.querySelector('input'), val = box.querySelector('.val');
-  if (['exposure', 'temp', 'tint'].includes(S.panel)) {
-    Object.assign(range, { min: -2, max: 2, step: 0.05 }); range.value = S[S.panel]; val.textContent = fmt(S[S.panel]);
-    range.oninput = () => { S[S.panel] = +range.value; film.params = params(); val.textContent = fmt(S[S.panel]); c.querySelector('.sel').textContent = c.querySelector('.sel').textContent.replace(/[-+][\d.]+$/, fmt(S[S.panel])); };
-    range.onchange = () => sync();
-  } else if (S.panel === 'shutter') {
-    const opts = [0, ...SHUTTER_SPEEDS];
-    Object.assign(range, { min: 0, max: opts.length - 1, step: 1 }); range.value = Math.max(0, opts.indexOf(S.shutter));
-    val.textContent = S.shutter ? shutterLabel(S.shutter) : 'AUTO';
-    range.oninput = () => { S.shutter = opts[+range.value]; film.resetAccumulation(); sync(); };
-  } else if (S.panel === 'fps') {
-    Object.assign(range, { min: 0, max: FPS_VALUES.length - 1, step: 1 }); range.value = Math.max(0, FPS_VALUES.indexOf(S.fps));
-    val.textContent = `${S.fps}`;
-    range.oninput = () => { S.fps = FPS_VALUES[+range.value]; sync(); };
-  }
+  add('ev', 'EV', S.exposure !== 0);
 }
-const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(1);
 
-function renderZoom() {
-  const z = $('#zoom'); z.innerHTML = '';
-  z.style.visibility = S.recording ? 'hidden' : 'visible';
-  for (const v of [1, 2, 3]) {
-    const b = document.createElement('button');
-    const sel = Math.abs(S.zoom - v) < 0.05;
-    b.className = sel ? 'sel' : ''; b.textContent = sel ? `${v}×` : v;
-    b.onclick = () => { S.zoom = v; sync(); };
-    z.appendChild(b);
+function renderRuler() {
+  const box = $('#ruler'); box.innerHTML = '';
+  const d = S.dial;
+  if (!d) { box.innerHTML = `<div class="desc"></div>`; box.firstChild.textContent = S.recipe.description; return; }
+  if (d === 'lens') {
+    const row = document.createElement('div'); row.className = 'lenses';
+    for (const z of LENSES) {
+      const b = document.createElement('button'); b.textContent = focal(z); b.className = Math.abs(S.zoom - z) < 0.05 ? 'sel' : '';
+      b.onclick = () => { S.zoom = z; sync(); };
+      row.appendChild(b);
+    }
+    box.appendChild(row); return;
   }
+  let labels, index, onIndex, cont;
+  if (d === 'wb' || d === 'ev') {
+    const key = d === 'wb' ? 'temp' : 'exposure';
+    cont = { get: () => (S[key] + 2) / 4, set: f => { S[key] = Math.round((f * 4 - 2) * 20) / 20; film.params = params(); }, label: () => (S[key] >= 0 ? '+' : '') + S[key].toFixed(1) + (d === 'ev' ? ' EV' : ''), reset: () => { S[key] = 0; } };
+  } else if (d === 'shutter') {
+    const opts = [0, ...SHUTTER_SPEEDS]; labels = ['AUTO', ...SHUTTER_SPEEDS.map(shutterLabel)];
+    index = Math.max(0, opts.indexOf(S.shutter)); onIndex = i => { S.shutter = opts[i]; film.resetAccumulation(); film.shutter = S.shutter; };
+  } else if (d === 'fps') {
+    labels = FPS_VALUES.map(String); index = Math.max(0, FPS_VALUES.indexOf(S.fps)); onIndex = i => { S.fps = FPS_VALUES[i]; };
+  }
+  const val = document.createElement('div'); val.className = 'val';
+  const cv = document.createElement('canvas'); cv.width = 560; cv.height = 60;
+  box.append(val, cv);
+  const ticks = labels ? labels.length : 41;
+  let f = cont ? cont.get() : index / (ticks - 1);
+  const paint = () => {
+    val.textContent = cont ? cont.label() : labels[Math.round(f * (ticks - 1))];
+    const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height);
+    const spacing = cv.width * 1.2 / (ticks - 1), cx = cv.width / 2;
+    for (let i = 0; i < ticks; i++) {
+      const x = cx + (i - f * (ticks - 1)) * spacing; if (x < 0 || x > cv.width) continue;
+      const major = ticks <= 15 || i % 5 === 0, fade = 1 - Math.abs(x - cx) / cx;
+      g.strokeStyle = `rgba(237,230,218,${0.25 + 0.6 * fade})`; g.lineWidth = major ? 3 : 2;
+      g.beginPath(); g.moveTo(x, cv.height * (major ? 0.25 : 0.45)); g.lineTo(x, cv.height * 0.85); g.stroke();
+    }
+    g.strokeStyle = '#ffb23f'; g.lineWidth = 5; g.beginPath(); g.moveTo(cx, 0); g.lineTo(cx, cv.height); g.stroke();
+  };
+  paint();
+  let startX = null, startF = 0;
+  cv.onpointerdown = e => { startX = e.clientX; startF = f; cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => {
+    if (startX === null) return;
+    f = Math.min(1, Math.max(0, startF - (e.clientX - startX) / (cv.clientWidth * 1.2)));
+    if (cont) cont.set(f); else { const i = Math.round(f * (ticks - 1)); if (i !== index) { index = i; onIndex(i); film.params = params(); } }
+    paint();
+  };
+  cv.onpointerup = () => { startX = null; if (!cont) f = index / (ticks - 1); paint(); renderDials(); film.params = params(); };
+  val.onclick = () => { if (cont) { cont.reset(); f = cont.get(); film.params = params(); paint(); renderDials(); } };
 }
 
 // ------------------------------------------------------------------ capture
@@ -270,7 +295,7 @@ let ctx;
 function click() {
   const blink = $('#blink');
   blink.style.transition = 'none'; blink.style.opacity = 1;
-  requestAnimationFrame(() => { blink.style.transition = 'opacity .22s'; blink.style.opacity = 0; });
+  requestAnimationFrame(() => { blink.style.transition = 'opacity .24s'; blink.style.opacity = 0; });
   navigator.vibrate?.(20);
   if (!S.sound) return;
   try {
@@ -289,7 +314,6 @@ async function countdown() {
   $('#count').textContent = ''; S.busy = false; sync();
 }
 
-/** Full-resolution, upright (and mirrored for selfies, like the preview) copy of the current video frame. */
 function snapshot() {
   const c = document.createElement('canvas');
   c.width = video.videoWidth; c.height = video.videoHeight;
@@ -303,17 +327,17 @@ let pending = [], doubleFirst = null;
 function resetMulti() { pending = []; doubleFirst = null; film?.setDouble(null); status(null); }
 function status(t) { const s = $('#status'); s.textContent = t || ''; s.style.display = t ? 'block' : 'none'; }
 
-function compose(frames, cols, rows, cell) {
+function compose(frames, cols, rows, cell, bg = 'rgb(12,11,10)', gapFrac = 0.03, padFrac = 0) {
   const cellH = Math.min(...frames.map(f => f.height), ...frames.map(f => Math.floor(f.width / cell)), Math.floor(2400 / rows));
-  const cellW = Math.round(cellH * cell), gap = Math.round(cellH * 0.03);
+  const cellW = Math.round(cellH * cell), gap = Math.round(cellH * gapFrac), pad = Math.round(cellH * padFrac);
   const out = document.createElement('canvas');
-  out.width = cols * cellW + (cols - 1) * gap; out.height = rows * cellH + (rows - 1) * gap;
-  const g = out.getContext('2d'); g.fillStyle = 'rgb(12,11,10)'; g.fillRect(0, 0, out.width, out.height);
+  out.width = cols * cellW + (cols - 1) * gap + 2 * pad; out.height = rows * cellH + (rows - 1) * gap + 2 * pad;
+  const g = out.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, out.width, out.height);
   frames.forEach((f, i) => {
     const fa = f.width / f.height;
     let sx = 0, sy = 0, sw = f.width, sh = f.height;
     if (fa > cell) { sw = f.height * cell; sx = (f.width - sw) / 2; } else { sh = f.width / cell; sy = (f.height - sh) / 2; }
-    g.drawImage(f, sx, sy, sw, sh, (i % cols) * (cellW + gap), Math.floor(i / cols) * (cellH + gap), cellW, cellH);
+    g.drawImage(f, sx, sy, sw, sh, pad + (i % cols) * (cellW + gap), pad + Math.floor(i / cols) * (cellH + gap), cellW, cellH);
   });
   return out;
 }
@@ -335,27 +359,29 @@ async function shoot() {
       } else {
         await save(film.develop(raw, P, imgAspect, seed, Date.now(), null, S.zoom), r);
       }
-    } else if (r.capture === 'HALF') {
+    } else if (r.capture === 'HALF' || r.capture === 'COLLAGE') {
+      const need = r.capture === 'HALF' ? 2 : 4;
       click(); pending.push(snapshot());
-      if (pending.length < 2) { status('1/2'); return; }
-      const comp = compose(pending, 2, 1, imgAspect); resetMulti();
+      if (pending.length < need) { status(`${pending.length}/${need}`); return; }
+      const comp = need === 2 ? compose(pending, 2, 1, imgAspect) : compose(pending, 2, 2, imgAspect, 'rgb(246,244,238)', 0.04, 0.06);
+      resetMulti();
       await save(film.develop(comp, P, comp.width / comp.height, seed, Date.now()), r);
-    } else if (r.capture === 'QUAD') {
-      const frames = [];
-      for (let i = 0; i < 4; i++) { status(`${i + 1}/4`); click(); frames.push(film.grabRaw()); await wait(280); }
+    } else if (r.capture === 'GRID16') {
+      const frames = []; click();
+      for (let i = 0; i < 16; i++) { status(`${i + 1}/16`); frames.push(film.grabRaw()); await wait(110); }
       status(null);
-      const comp = compose(frames, 2, 2, imgAspect);
+      const comp = compose(frames, 4, 4, imgAspect, 'rgb(12,11,10)', 0.02);
       await save(film.develop(comp, P, comp.width / comp.height, seed, Date.now()), r);
     } else if (r.capture === 'WIGGLE') {
       click();
       const frames = [];
-      for (let i = 0; i < 3; i++) { frames.push(film.grabRaw()); await wait(110); }
-      await saveWiggle(frames.map((f, i) => film.develop(f, P, imgAspect, seed, Date.now(), null, 1.08)), r);
+      for (let i = 0; i < 4; i++) { frames.push(film.grabRaw()); await wait(90); }
+      await saveWiggle(frames.map(f => film.develop(f, P, imgAspect, seed, Date.now(), null, 1.1)), r);
     }
   } catch (e) {
     console.error(e); message('Capture failed: ' + e.message);
   } finally {
-    S.busy = false; film.seed = Math.random() * 100; sync();
+    S.busy = false; film.seed = newSeed(); sync();
   }
 }
 
@@ -374,24 +400,22 @@ function pickMime() {
 }
 
 async function saveWiggle(frames, r) {
-  // play 0,1,2,1 on a canvas and record it as a looping clip
   const c = document.createElement('canvas'); c.width = frames[0].width; c.height = frames[0].height;
   const g = c.getContext('2d');
   const mime = pickMime();
-  const rec = new MediaRecorder(c.captureStream(10), mime ? { mimeType: mime } : undefined);
+  const rec = new MediaRecorder(c.captureStream(12), mime ? { mimeType: mime } : undefined);
   const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   const done = new Promise(res => (rec.onstop = res));
   rec.start();
-  const order = [0, 1, 2, 1];
-  for (let i = 0; i < 32; i++) {
-    const f = frames[order[i % 4]];
-    const dx = (order[i % 4] - 1) * c.width * 0.02;
-    g.drawImage(f, dx, 0);
-    await wait(100);
+  const n = frames.length, order = [...Array(n).keys(), ...Array.from({ length: n - 2 }, (_, i) => n - 2 - i)];
+  for (let i = 0; i < 40; i++) {
+    const k = order[i % order.length];
+    g.drawImage(frames[k], (k - (n - 1) / 2) * c.width * 0.022, 0);
+    await wait(83);
   }
   rec.stop(); await done;
-  const blob = new Blob(chunks, { type: mime || 'video/webm' });
-  const id = Date.now(), ext = (mime || 'webm').includes('mp4') ? 'mp4' : 'webm';
+  const blob = new Blob(chunks, { type: (mime || 'video/webm').split(';')[0] });
+  const id = Date.now(), ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
   const thumb = await toBlob(frames[1]);
   await roll.add({ id, blob, type: blob.type, name: `FUNCAM_${id}.${ext}`, camera: r.name, thumb });
   setThumb(thumb);
@@ -414,20 +438,19 @@ async function startRecording() {
   recorder = rec;
   const chunks = [];
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
-  rec.onstop = async () => {
-    const blob = new Blob(chunks, { type: (rec.mimeType || mime || 'video/mp4').split(';')[0] });
-    const id = Date.now(), ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
-    await roll.add({ id, blob, type: blob.type, name: `FUNCAM_${id}.${ext}`, camera: r.name, thumb: posterBlob });
-    setThumb(posterBlob);
-    S.busy = false; sync();
-  };
-  // poster frame for the roll, grabbed as recording starts
   let posterBlob = null;
   requestAnimationFrame(async () => {
     const t = document.createElement('canvas'); t.width = 240; t.height = Math.round(240 * canvas.height / canvas.width);
     t.getContext('2d').drawImage(canvas, 0, 0, t.width, t.height);
     posterBlob = await toBlob(t);
   });
+  rec.onstop = async () => {
+    const blob = new Blob(chunks, { type: (rec.mimeType || mime || 'video/mp4').split(';')[0] });
+    const id = Date.now(), ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    await roll.add({ id, blob, type: blob.type, name: `FUNCAM_${id}.${ext}`, camera: r.name, thumb: posterBlob });
+    if (posterBlob) setThumb(posterBlob);
+    S.busy = false; sync();
+  };
   rec.start(1000);
   S.recording = true; sync();
   const start = Date.now(), recEl = $('#rec');
@@ -473,7 +496,7 @@ function openViewer(it) {
   viewing = it;
   const m = $('#viewer .media'); m.innerHTML = '';
   const url = URL.createObjectURL(it.blob);
-  const el = it.type.startsWith('video') ? Object.assign(document.createElement('video'), { src: url, controls: true, loop: true, playsInline: true, autoplay: true, muted: false })
+  const el = it.type.startsWith('video') ? Object.assign(document.createElement('video'), { src: url, controls: true, loop: true, playsInline: true, autoplay: true })
     : Object.assign(document.createElement('img'), { src: url, alt: it.name });
   m.appendChild(el);
   $('#viewer').style.display = 'flex';
@@ -497,8 +520,7 @@ async function importPhoto(file) {
   try {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
-    const t = file.lastModified || Date.now();
-    await save(film.develop(c, params(false), ratio().v, Math.random() * 100, t), r);
+    await save(film.develop(c, params(false), ratio().v, newSeed(), file.lastModified || Date.now()), r);
     message(`Developed with ${r.name} — see Your photos`);
   } catch (e) { message('Import failed: ' + e.message); }
   S.busy = false; sync();
@@ -513,7 +535,7 @@ function wire() {
     S.ratioIdx[S.recipe.id] = ((S.ratioIdx[S.recipe.id] || 0) + 1) % S.recipe.ratios.length;
     resetMulti(); persist(); sync();
   };
-  $('#bAdjust').onclick = () => { S.adjustOpen = !S.adjustOpen; sync(); };
+  $('#bDouble').onclick = () => { resetMulti(); S.acc.doubleExposure = !S.acc.doubleExposure; sync(); message(S.acc.doubleExposure ? 'Double exposure on' : 'Double exposure off'); };
   $('#bAcc').onclick = () => openSheet($('#sAcc'));
   $('#bMore').onclick = e => { e.stopPropagation(); const m = $('#menu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; };
   document.addEventListener('click', e => { if (!e.target.closest('#menu') && e.target.id !== 'bMore') $('#menu').style.display = 'none'; });
@@ -523,8 +545,7 @@ function wire() {
   $('#mSettings').onclick = () => { $('#menu').style.display = 'none'; openSheet($('#sSettings')); };
   $('#file').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importPhoto(f); };
   $('#scrim').onclick = closeSheets;
-  const openPicker = buildPicker();
-  $('#bAll').onclick = openPicker;
+  $('#body').onclick = buildPicker();
   $('#thumb').onclick = openRoll;
   $('#flip').onclick = async () => { if (S.recording) return; S.front = !S.front; S.zoom = 1; await openCamera(); sync(); };
   $('#shutter').onclick = () => {
@@ -534,14 +555,24 @@ function wire() {
   $('#vClose').onclick = () => { $('#viewer').style.display = 'none'; $('#viewer .media').innerHTML = ''; };
   $('#vSave').onclick = saveViewing;
   $('#vDelete').onclick = async () => { await roll.remove(viewing.id); $('#vClose').onclick(); openRoll(); };
-  // pinch to zoom (digital)
-  let pinch = null;
+  // swipe to change camera, pinch to zoom
   const vf = $('#vf');
-  vf.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = { d: dist(e.touches), z: S.zoom }; }, { passive: true });
-  vf.addEventListener('touchmove', e => {
-    if (pinch && e.touches.length === 2) { S.zoom = Math.min(4, Math.max(1, pinch.z * dist(e.touches) / pinch.d)); film.zoom = S.zoom; renderZoom(); }
+  let pinch = null, swipe = null;
+  vf.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) { pinch = { d: dist(e.touches), z: S.zoom }; swipe = null; }
+    else swipe = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }, { passive: true });
-  vf.addEventListener('touchend', () => (pinch = null));
+  vf.addEventListener('touchmove', e => {
+    if (pinch && e.touches.length === 2) { S.zoom = Math.min(4, Math.max(1, pinch.z * dist(e.touches) / pinch.d)); film.zoom = S.zoom; }
+  }, { passive: true });
+  vf.addEventListener('touchend', e => {
+    if (swipe && !pinch && e.changedTouches[0]) {
+      const dx = e.changedTouches[0].clientX - swipe.x, dy = e.changedTouches[0].clientY - swipe.y;
+      if (Math.abs(dx) > vf.clientWidth * 0.18 && Math.abs(dx) > Math.abs(dy) * 1.5) stepCamera(dx < 0 ? 1 : -1);
+    }
+    if (pinch) renderDials();
+    pinch = null; swipe = null;
+  });
   window.addEventListener('resize', () => (lastLayout = ''));
   document.addEventListener('visibilitychange', () => { if (document.hidden && S.recording) stopRecording(); });
 }
@@ -553,6 +584,8 @@ async function start() {
     if (!window.isSecureContext) throw new Error('Open this page over https:// so the camera can be used.');
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser has no camera access. On iPhone use Safari.');
     film = new FilmGL(canvas);
+    $('#bStart').textContent = 'Loading film…';
+    await film.loadLuts(CAMERAS.map(c => c.look.lut));
     video = Object.assign(document.createElement('video'), { muted: true, playsInline: true, autoplay: true });
     video.setAttribute('playsinline', '');
     await openCamera();
@@ -563,10 +596,11 @@ async function start() {
     if (latest) setThumb(latest);
   } catch (e) {
     console.error(e);
+    $('#bStart').textContent = 'Open camera';
     $('#startErr').textContent = e.message || String(e);
   }
 }
 
-buildStrip(); buildAcc(); buildSettings(); wire(); sync();
+buildAcc(); buildSettings(); wire(); sync();
 $('#bStart').onclick = start;
 if (navigator.serviceWorker && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

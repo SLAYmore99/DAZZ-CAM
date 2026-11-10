@@ -21,6 +21,44 @@ source (MIT). Every camera is free, with no paywall.
 - **Not yet tested on a real phone.** The user needs to install the APK and report anything
   that's wrong.
 
+## Update 2026-11-10 (later): v0.2 overhaul
+The user said the cameras looked random, basic and had "weird lines", the videos were dull and
+the UI cluttered. They asked for proper research and a real overhaul.
+- **Research:**
+  - A community GitHub gist maps every Dazz camera to its real camera: CPM35 = Canon Sure Shot
+    85, NT16 = Yashica T4, CT2F = Contax T2, HOGA = Holga, Golf = Fuji Byu-N16 (16 lenses),
+    D3D = Nishika N8000, KV88 = Kiev 88, S 67 = Pentax 67, Inst C/SQ/SQC = Instax.
+  - A JP review covers all 30 filters and 11 video cams.
+  - Frames from the user's Instagram reel show the Original V UI (ISO 160, S 1/4, 13 mm).
+  - Captions of the YouTube tutorial were read.
+  - YouTube video download was blocked by its bot check, and I didn't circumvent it.
+- **The lines came from** a float `fract()` hash in the grain/leak noise, which breaks on
+  mobile GPUs. Fixed with an integer PCG hash.
+- **Engine v2:**
+  - GRADE (lens, flash, WB in linear, then a 3D LUT, then tone)
+  - DOWN, then BLUR (separable Gaussian)
+  - COMPOSITE (glow, halation, softness, organic leaks, grain, video artefacts, stamp,
+    frames/gates)
+- **LUTs:**
+  - 25 film stocks from the RawTherapee HaldCLUT pack (CC BY-SA 4.0), plus 5 custom looks
+    (ccd, grd, infra, vhs, dcr).
+  - Built by `tools/make_luts.py`; 33³ cubes stored as 33×1089 PNGs, 900 KB total.
+- **Roster:** 42 cameras (30 photo / 12 video), mirroring Dazz's lineup 1:1 in concept with
+  original names. Spec in `docs/CAMERAS.md`.
+- **New capture modes:** COLLAGE (4 shots on a white card), GRID16, WIGGLE with 4 lenses.
+- **New frames:** BLACK, NEGATIVE (edge print), SPROCKET (image over the holes), GATE8/16
+  (rounded), TOY (ragged edges). The instant frame colour is selectable.
+- **Date stamp:** a 7-segment LED date drawn with glow.
+- **UI (Dazz-like):** viewfinder; round dials (WB · lens mm · EV · ISO/S/FPS on manual) with a
+  ruler slider; bottom row of gallery, shutter and current-camera body button; a picker
+  sectioned by category; swipe the viewfinder to change camera.
+- **Verified:** WebGL contact sheets of all 42 cameras on real test photos, a 100% crop check
+  (no lines), web e2e test with a fake camera, Android build + lint + unit tests.
+- **Still not done:**
+  - Not tested on a real phone. Kino isn't landscape-aware.
+  - The exact Dazz look per camera is still an approximation of the real camera/film, not a
+    measured match. Side-by-side reference shots would let me tune it.
+
 ## Update 2026-11-10
 - **Sideways preview fixed.** CameraX reports `hasCameraTransform() = true`: the
   SurfaceTexture matrix already rotates (and mirrors the front camera), so the input shader
@@ -63,13 +101,14 @@ source (MIT). Every camera is free, with no paywall.
 - `ui/`: CameraScreen, sheets (cameras / accessories / settings), the Darkroom and CameraIcon
   (vector art drawn in code).
 
-## Camera roster
-- **Digital:** Pixel 02, Cyber Mini, Glow CCD, Snap Pro, Manual P
-- **135:** Sunny 200, Fun Saver, Night 1600, Slide E6, Half Cam, Gold 400, Mono 400, SR Classic,
-  Expired
-- **120:** Toy 120, Medium 6x7, Quad Lens, 3D Wiggle
-- **Inst:** Insta Square, Insta Mini, Insta Wide
-- **Video:** Super 8, 16 Mil, VHS-C, Handycam 99, Projector, Dream Blur, Manual V
+## Camera roster (v0.2) — see docs/CAMERAS.md
+- **Digital:** Plain, CCD-05, GR-D, Pastel, Fine X, Collage
+- **135:** Range, GR Mono, T2, Fade 35, T4 Super, 3D Wiggle, Slide NE, Fun Saver, Infra,
+  SLR Classic, Simple, Quick 800, Byu 16, Sure 85, Sprocket, Half, Slide
+- **120:** TLR, Toy 120, Six7, Kiev
+- **Inst:** Insta Mini, Insta Mono, Insta SQ
+- **Video:** Plain V, Classic V, 16 Mil, Super 8, VHS, Kino, Insta V, Fun Saver V, Handycam,
+  Glow V, Projector, Dream Blur
 
 ## Key decisions
 - Slow-shutter video is simulated with an exponential frame blend (alpha = frameDt / shutter)
