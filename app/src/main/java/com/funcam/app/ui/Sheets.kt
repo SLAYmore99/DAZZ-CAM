@@ -32,6 +32,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,59 +47,40 @@ import com.funcam.app.model.Cameras
 import com.funcam.app.model.Category
 import com.funcam.app.model.FlashGel
 import com.funcam.app.model.InstantFrame
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.runtime.remember
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraPickerSheet(vm: CamViewModel, onClose: () -> Unit) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val cats = Category.entries
-    val listState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    // flat list: header + cameras per category
-    val sections = cats.map { c -> c to Cameras.inCategory(c) }
-    val headerIndex = remember {
-        var i = 0
-        sections.associate { (c, l) -> c to i.also { i += 1 + l.size } }
-    }
+    var tab by remember { mutableIntStateOf(cats.indexOf(vm.recipe.category).coerceAtLeast(0)) }
     ModalBottomSheet(onDismissRequest = onClose, sheetState = state, containerColor = FC.bg) {
-        Column(Modifier.padding(bottom = 12.dp)) {
-            Text("Cameras", color = FC.text, fontSize = 22.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 18.dp))
-            Text("${Cameras.all.size} cameras · all free", color = FC.dim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp))
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                cats.forEach { c ->
-                    Text(
-                        c.label, color = FC.text, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(FC.panel2)
-                            .clickable { scope.launch { listState.animateScrollToItem(headerIndex[c] ?: 0) } }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                    )
+        Column(Modifier.padding(bottom = 24.dp)) {
+            Text("Cameras", color = FC.text, fontSize = 20.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 18.dp))
+            Text("Every camera is free in FUN CAM.", color = FC.dim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp))
+            ScrollableTabRow(selectedTabIndex = tab, containerColor = FC.bg, contentColor = FC.amber, edgePadding = 12.dp) {
+                cats.forEachIndexed { i, c ->
+                    Tab(selected = i == tab, onClick = { tab = i }, text = {
+                        Text(c.label, fontWeight = FontWeight.Bold, color = if (i == tab) FC.amber else FC.text)
+                    })
                 }
             }
             LazyVerticalGrid(
-                state = listState, columns = GridCells.Fixed(3), modifier = Modifier.heightIn(max = 600.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+                columns = GridCells.Fixed(3), modifier = Modifier.heightIn(max = 520.dp),
+                contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                sections.forEach { (c, list) ->
-                    item(span = { GridItemSpan(3) }, key = "h_" + c.name) {
-                        Text(c.label.uppercase(), color = FC.amber, fontWeight = FontWeight.Black, fontSize = 12.sp, letterSpacing = 1.5.sp,
-                            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
-                    }
-                    items(list, key = { it.id }) { r ->
-                        val sel = r.id == vm.recipe.id
-                        Column(
-                            Modifier.clip(RoundedCornerShape(14.dp)).background(if (sel) FC.panel2 else FC.panel)
-                                .border(if (sel) 1.5.dp else 0.dp, if (sel) FC.amber else Color.Transparent, RoundedCornerShape(14.dp))
-                                .clickable { vm.selectRecipe(r); onClose() }.padding(vertical = 10.dp, horizontal = 6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            CameraIcon(r, width = 84.dp)
-                            Spacer(Modifier.height(4.dp))
-                            Text(r.name, color = if (sel) FC.amber else FC.text, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
-                        }
+                items(Cameras.inCategory(cats[tab]), key = { it.id }) { r ->
+                    val sel = r.id == vm.recipe.id
+                    Column(
+                        Modifier.clip(RoundedCornerShape(12.dp)).background(FC.panel)
+                            .border(if (sel) 1.5.dp else 0.dp, if (sel) FC.amber else Color.Transparent, RoundedCornerShape(12.dp))
+                            .clickable { vm.selectRecipe(r); onClose() }.padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CameraIcon(r, width = 76.dp)
+                        Text(r.name, color = if (sel) FC.amber else FC.text, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(r.description, color = FC.dim, fontSize = 9.sp, textAlign = TextAlign.Center, maxLines = 3, lineHeight = 11.sp)
                     }
                 }
             }
@@ -112,18 +94,21 @@ fun AccessoriesSheet(vm: CamViewModel, onClose: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onClose, containerColor = FC.bg) {
         val a = vm.acc
         Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 28.dp)) {
-            Text("Lenses & filters", color = FC.text, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Stack them on any camera.", color = FC.dim, fontSize = 12.sp)
+            Text("Accessories", color = FC.text, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Text("Stack lenses and filters on any camera.", color = FC.dim, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
             val toggles: List<Triple<String, String, Pair<Boolean, (Boolean) -> Accessories>>> = listOf(
                 Triple("Fisheye W", "Full-frame bulging ultra-wide", a.fisheyeW to { v: Boolean -> a.copy(fisheyeW = v, fisheyeC = false) }),
                 Triple("Fisheye C", "Circular fisheye in a black frame", a.fisheyeC to { v: Boolean -> a.copy(fisheyeC = v, fisheyeW = false) }),
                 Triple("Prism", "Rainbow ghost reflections", a.prism to { v: Boolean -> a.copy(prism = v) }),
-                Triple("Star", "Starbursts on bright lights", a.star to { v: Boolean -> a.copy(star = v) }),
+                Triple("Star filter", "Starbursts on bright lights", a.star to { v: Boolean -> a.copy(star = v) }),
                 Triple("ND filter", "Darker exposure for slow shutters in daylight", a.nd to { v: Boolean -> a.copy(nd = v) }),
-                Triple("Light leaks", "Random warm leaks on film cameras", a.lightLeaks to { v: Boolean -> a.copy(lightLeaks = v) }),
+                Triple("Double exposure", "Layer two shots in one frame", a.doubleExposure to { v: Boolean -> a.copy(doubleExposure = v) }),
+                Triple("Light leaks", "Random warm leaks on film bodies", a.lightLeaks to { v: Boolean -> a.copy(lightLeaks = v) }),
             )
-            toggles.forEach { (title, sub, pair) -> ToggleRow(title, sub, pair.first) { vm.updateAcc(pair.second(it)) } }
+            toggles.forEach { (title, sub, pair) ->
+                ToggleRow(title, sub, pair.first) { vm.updateAcc(pair.second(it)) }
+            }
             Spacer(Modifier.height(10.dp))
             Text("Flash colour", color = FC.text, fontWeight = FontWeight.Bold)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -21,6 +21,25 @@ source (MIT). Every camera is free, with no paywall.
 - **Not yet tested on a real phone.** The user needs to install the APK and report anything
   that's wrong.
 
+## Update 2026-11-10 (latest): v0.2.1
+- **The user didn't like the v2 UI.** The v0.1.1 layout is restored:
+  - icon strip carousel
+  - EXP/TEMP/TINT chips behind the Adjust button
+  - zoom pills under the viewfinder
+  - gallery | shutter | flip
+  - old picker/sheets
+
+  The v2 film looks, LUTs, grain fix and 42 cameras are kept.
+- **Slow shutter is now on EVERY camera,** photo and video, the user's choice. The S and ISO
+  chips are always shown; FPS on video. Long exposures work on any photo camera when S is
+  slower than 1/30.
+- **The user tried to share the Dazz IPA** and asked me to take its frames/filters. I declined:
+  DRM plus copyrighted assets. I built `tools/match_look.py` instead, which fits LUT,
+  vignette, grain and sharpness from iPhone-vs-Dazz photo pairs. Self-test: 2.9/255 colour
+  error. Waiting on the user's reference photos (`reference/` folder, see
+  `docs/MATCHING.md`).
+- The user should make the `dazz-cam-ipa` repo private or delete it.
+
 ## Update 2026-11-10 (later): v0.2 overhaul
 The user said the cameras looked random, basic and had "weird lines", the videos were dull and
 the UI cluttered. They asked for proper research and a real overhaul.

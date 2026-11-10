@@ -231,7 +231,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun applyManual() {
-        if (recipe.manual) controller.setManual(iso, shutter) else controller.setManual(0, 0f)
+        controller.setManual(iso, shutter)
     }
 
     fun resetAdjustments() {
@@ -261,7 +261,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     fun sync() {
         renderer.params = params(flashFired = flashOn && !recipe.isVideo)
         renderer.previewImgAspect = previewImgAspect
-        renderer.shutterSeconds = if (recipe.manual) shutter else 0f
+        renderer.shutterSeconds = shutter
     }
 
     private fun resetMulti() {
@@ -308,7 +308,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         try {
             when (r.capture) {
                 CaptureMode.SINGLE -> {
-                    val longExposure = r.manual && shutter > 1 / 30f
+                    val longExposure = shutter > 1 / 30f
                     click()
                     val raw = if (longExposure) {
                         if (fired) controller.setTorch(true)
@@ -460,7 +460,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         var w: Int; var h: Int
         if (spec.outAspect < 1f) { h = long; w = (long * spec.outAspect).toInt() } else { w = long; h = (long / spec.outAspect).toInt() }
         w = (w / 16) * 16; h = (h / 16) * 16
-        val outFps = if (r.manual) fps else r.videoFps
+        val outFps = fps
         val file = File(ctx.cacheDir, "rec_${System.currentTimeMillis()}.mp4")
         val audioOk = recordAudio && ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
