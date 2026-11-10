@@ -1,0 +1,10 @@
+{
+  "appId": "com.funcam.app",
+  "appName": "FUN CAM",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "backgroundColor": "#0d0d0e"
+  }
+}

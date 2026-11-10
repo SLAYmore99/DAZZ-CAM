@@ -1,0 +1,19 @@
+{
+  "name": "funcam-ios",
+  "version": "0.3.0",
+  "private": true,
+  "description": "FUN CAM for iPhone: Capacitor shell around the shared web camera engine (../web)",
+  "scripts": {
+    "copy-web": "rm -rf www && mkdir www && cp -R ../web/. www/ && rm -rf www/_test",
+    "sync": "npm run copy-web && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}

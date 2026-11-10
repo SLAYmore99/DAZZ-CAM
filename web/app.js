@@ -588,8 +588,20 @@ function openViewer(it) {
   $('#viewer').style.display = 'flex';
 }
 
+const native = () => !!window.Capacitor?.isNativePlatform?.();
+const blobToBase64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+
 async function saveViewing() {
   const it = viewing; if (!it) return;
+  if (native()) {
+    // iOS app: write the file, then open the share sheet ("Save Image" / "Save Video")
+    try {
+      const { Filesystem, Share } = window.Capacitor.Plugins;
+      const res = await Filesystem.writeFile({ path: it.name, data: await blobToBase64(it.blob), directory: 'CACHE' });
+      await Share.share({ files: [res.uri], title: 'FUN CAM' });
+    } catch (e) { if (!/cancel/i.test(String(e?.message || e))) message('Could not save: ' + (e?.message || e)); }
+    return;
+  }
   const file = new File([it.blob], it.name, { type: it.type });
   if (navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
@@ -661,7 +673,7 @@ const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].cl
 async function start() {
   $('#startErr').textContent = '';
   try {
-    if (!window.isSecureContext) throw new Error('Open this page over https:// so the camera can be used.');
+    if (!window.isSecureContext && !native()) throw new Error('Open this page over https:// so the camera can be used.');
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser has no camera access. On iPhone use Safari.');
     film = new FilmGL(canvas);
     $('#bStart').textContent = 'Loading film…';
@@ -682,4 +694,4 @@ async function start() {
 
 buildWheel(); buildAcc(); buildSettings(); wire(); sync();
 $('#bStart').onclick = start;
-if (navigator.serviceWorker && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if (navigator.serviceWorker && location.protocol === 'https:' && !native()) navigator.serviceWorker.register('sw.js').catch(() => {});

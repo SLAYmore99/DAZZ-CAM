@@ -1,0 +1,59 @@
+name: Build FUN CAM for iPhone (IPA)
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+    paths: ["web/**", "ios-app/**", "tools/gen_web_data.py", ".github/workflows/ios.yml",
+            "app/src/main/java/com/funcam/app/gl/Shaders.kt", "app/src/main/java/com/funcam/app/model/Cameras.kt"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Regenerate the shared camera data
+        run: python3 tools/gen_web_data.py
+      - name: Create the iOS project
+        working-directory: ios-app
+        run: |
+          npm ci
+          npm run copy-web
+          npx cap add ios
+          bash scripts/configure-ios.sh
+          npx cap sync ios
+      - name: Build (unsigned)
+        working-directory: ios-app
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -40
+          test -d build/Build/Products/Release-iphoneos/App.app
+      - name: Package IPA
+        working-directory: ios-app
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry ../FUN-CAM.ipa Payload
+          ls -la ../FUN-CAM.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FUN-CAM-ipa
+          path: FUN-CAM.ipa
+      - name: Update the "latest" release (shareable download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: FUN CAM — latest build
+          prerelease: true
+          files: FUN-CAM.ipa
+          body: |
+            **Android:** download `FUN-CAM.apk` and open it on your phone.
+            **iPhone:** download `FUN-CAM.ipa` and install it with AltStore or Sideloadly (see ios-app/README.md).
