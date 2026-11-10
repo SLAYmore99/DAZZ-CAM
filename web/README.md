@@ -5,7 +5,7 @@ and the same 28 camera recipes as the Android app. `data.js` is generated from t
 sources by `tools/gen_web_data.py`, so the looks always match.
 
 ## Install on iPhone
-1. Open the app's https link in **Safari**.
+1. Open **https://slaymore99.github.io/DAZZ-CAM/** in **Safari**.
 2. Tap **Open camera** and allow camera access.
 3. Tap **Share → Add to Home Screen**. FUN CAM then opens full-screen like a normal app.
 4. Shots are kept inside the app. To put one in Photos, tap the thumbnail, pick a shot and

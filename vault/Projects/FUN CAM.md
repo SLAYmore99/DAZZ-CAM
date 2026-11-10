@@ -21,6 +21,13 @@ source (MIT). Every camera is free, with no paywall.
 - **Not yet tested on a real phone.** The user needs to install the APK and report anything
   that's wrong.
 
+## Links
+- **iPhone (Safari web app):** https://slaymore99.github.io/DAZZ-CAM/
+  - GitHub Pages is enabled by the workflow (`configure-pages` with `enablement: true`).
+- **Downloads (APK + IPA):** https://github.com/SLAYmore99/DAZZ-CAM/releases/tag/latest
+- **Live-site test (Chromium iPhone 14 emulation, fake camera):** camera, wheel loop, photo
+  save, slow badge, manifest and service worker all OK. Not yet tested in real iOS Safari.
+
 ## Update 2026-11-10 (newest): v0.3.0
 - **The user wants to keep the current (v0.2.1) screen and build on it.**
 - **Closed-loop camera wheel** (Android + web):
