@@ -7,3 +7,5 @@ local.properties
 captures/
 .kotlin/
 web/_test/
+__pycache__/
+*.pyc
