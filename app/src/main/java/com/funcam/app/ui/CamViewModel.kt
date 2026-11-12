@@ -154,6 +154,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
 
     fun bindCamera(owner: LifecycleOwner) {
         this.owner = owner
+        if (FilmRenderer.headless) return
         viewModelScope.launch {
             try {
                 caps = controller.bind(owner, front, stabilize)

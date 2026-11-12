@@ -36,13 +36,14 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.funcam.app.ui.CamViewModel
-import com.funcam.app.ui.CameraScreen
+import com.funcam.app.ui.EditionRoot
 import com.funcam.app.ui.FC
 import com.funcam.app.ui.FunCamTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.funcam.app.model.Engine.v4 = BuildConfig.V4
         enableEdgeToEdge()
         setContent { FunCamTheme { Root() } }
     }
@@ -67,7 +68,7 @@ private fun Root() {
 
     if (granted) {
         val vm: CamViewModel = viewModel()
-        CameraScreen(vm)
+        EditionRoot(vm)
     } else {
         Column(
             Modifier.fillMaxSize().background(FC.bg).padding(32.dp),

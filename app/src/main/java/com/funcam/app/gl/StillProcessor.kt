@@ -22,7 +22,7 @@ class StillProcessor(private val context: Context) {
     private var maxTex = 4096
 
     init {
-        handler.post {
+        if (!FilmRenderer.headless) handler.post {
             egl = EglCore()
             pbuffer = egl.createPbuffer()
             egl.makeCurrent(pbuffer)

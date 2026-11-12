@@ -12,8 +12,32 @@ android {
         applicationId = "com.funcam.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.4.0"
+    }
+
+    // One app per interface. They install side by side; "classic" is the v0.3 app, kept as it was.
+    flavorDimensions += "edition"
+    productFlavors {
+        create("classic") {
+            dimension = "edition"
+            buildConfigField("boolean", "V4", "false")
+        }
+        create("dot") {
+            dimension = "edition"
+            applicationIdSuffix = ".dot"
+            buildConfigField("boolean", "V4", "true")
+        }
+        create("glass") {
+            dimension = "edition"
+            applicationIdSuffix = ".glass"
+            buildConfigField("boolean", "V4", "true")
+        }
+        create("field") {
+            dimension = "edition"
+            applicationIdSuffix = ".field"
+            buildConfigField("boolean", "V4", "true")
+        }
     }
 
     buildTypes {
@@ -30,7 +54,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
+    testOptions { unitTests { isIncludeAndroidResources = true; all { it.maxHeapSize = "2g"; it.systemProperty("roborazzi.test.record", "true") } } }
     lint {
         disable += setOf("ObsoleteSdkInt", "GradleDependency")
     }
@@ -55,4 +80,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     testImplementation("junit:junit:4.13.2")
+    // Screenshot tests that render the Compose screens on the JVM (no phone or emulator needed).
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.32.2")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.32.2")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

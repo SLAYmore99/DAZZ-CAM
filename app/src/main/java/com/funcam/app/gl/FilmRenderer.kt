@@ -23,6 +23,15 @@ class FilmRenderer(private val context: Context) {
     private val handler = Handler(thread.looper)
     private val executor = Executor { handler.post(it) }
 
+    /** Runs on the GL thread. In headless mode (JVM screenshot tests) there is no GL, so nothing runs. */
+    private fun post(block: () -> Unit) { if (!headless) handler.post(block) }
+
+    companion object {
+        /** Set by the JVM screenshot tests: no camera and no GL. */
+        @Volatile var headless = false
+    }
+
+
     private lateinit var egl: EglCore
     private lateinit var pbuffer: EGLSurface
     private lateinit var film: FilmPipeline
@@ -88,7 +97,7 @@ class FilmRenderer(private val context: Context) {
     @Volatile var frozen = false
 
     init {
-        handler.post {
+        post {
             egl = EglCore()
             pbuffer = egl.createPbuffer()
             egl.makeCurrent(pbuffer)
@@ -103,7 +112,7 @@ class FilmRenderer(private val context: Context) {
     // ---------------------------------------------------------------- camera input
 
     fun provideSurface(request: SurfaceRequest, isFront: Boolean) {
-        handler.post {
+        post {
             egl.makeCurrent(pbuffer)
             val res = request.resolution
             val tex = GlUtil.oesTexture()
@@ -310,7 +319,7 @@ class FilmRenderer(private val context: Context) {
     // ---------------------------------------------------------------- outputs
 
     fun setDisplay(surface: Surface?, w: Int, h: Int) {
-        handler.post {
+        post {
             display?.let { egl.makeCurrent(pbuffer); egl.releaseSurface(it) }
             display = null
             if (surface != null && surface.isValid) {
@@ -321,14 +330,14 @@ class FilmRenderer(private val context: Context) {
     }
 
     fun startEncoding(surface: Surface, w: Int, h: Int, fps: Int, startNs: Long) {
-        handler.post {
+        post {
             encoder = egl.createWindowSurface(surface)
             encW = w; encH = h; encFps = fps; encStartNs = startNs; lastEncNs = 0L
         }
     }
 
     fun stopEncoding(done: () -> Unit) {
-        handler.post {
+        post {
             encoder?.let { egl.makeCurrent(pbuffer); egl.releaseSurface(it) }
             encoder = null
             done()
@@ -337,12 +346,12 @@ class FilmRenderer(private val context: Context) {
 
     /** Returns the next raw (pre-film, accumulated) upright camera frame. */
     fun grabRaw(callback: (Bitmap) -> Unit) {
-        handler.post { grabs.add(callback) }
+        post { grabs.add(callback) }
     }
 
     /** Ghost image for double exposure, or null to clear. */
     fun setDoubleExposure(bmp: Bitmap?) {
-        handler.post {
+        post {
             egl.makeCurrent(pbuffer)
             if (bmp == null) {
                 GlUtil.deleteTexture(doubleTex); doubleTex = 0
@@ -354,10 +363,10 @@ class FilmRenderer(private val context: Context) {
     }
 
     /** Clear the accumulation buffer, e.g. when the shutter speed changes. */
-    fun resetAccumulation() = handler.post { accFresh = true }
+    fun resetAccumulation() = post { accFresh = true }
 
     fun release() {
-        handler.post {
+        post {
             try {
                 egl.makeCurrent(pbuffer)
                 accA?.release(); accB?.release(); grabFbo?.release(); outFbo?.release()

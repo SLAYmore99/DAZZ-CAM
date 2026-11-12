@@ -184,10 +184,11 @@ object Cameras {
         Recipe(
             "sure85", "Sure 85", Category.V135, Body.COMPACT, 0xFF2C2C2C, 0xFFB8B8B8,
             "The classic 90s point-and-shoot. Pale, bluish, nostalgic colour with the orange date in the corner.",
-            Look(lut = "superia200", temp = -0.3f, contrast = 0.92f, saturation = 0.82f, fade = 0.1f, highTint = V3(-0.01f, 0.01f, 0.03f,
+            Look(lut = "superia200", temp = -0.3f, contrast = 0.92f, saturation = 0.82f, fade = 0.1f,
+                highTint = V3(-0.01f, 0.01f, 0.03f), shadowTint = V3(0f, 0.01f, 0.04f), grain = 0.3f, halation = 0.15f, bloom = 0.15f,
+                vignette = 0.25f, flash = 0.9f,
                 // v4
                 rolloff = 0.7f, halWide = 0.15f, glowWide = 0.15f, distort = 0.12f),
-                shadowTint = V3(0f, 0.01f, 0.04f), grain = 0.3f, halation = 0.15f, bloom = 0.15f, vignette = 0.25f, flash = 0.9f),
             ratios = listOf(r23, r34, r11),
         ),
         Recipe(

@@ -50,11 +50,17 @@ class FrameSpecTest {
     }
 
     @Test fun rosterIsCompleteAndUnique() {
+        // classic edition: the original 30 photo + 12 video cameras
+        com.funcam.app.model.Engine.v4 = false
         assertEquals(42, Cameras.all.size)
         assertEquals(30, Cameras.all.count { !it.isVideo })
+        assertEquals(12, Cameras.all.count { it.isVideo })
+        // engine v4 editions: 37 photo + 14 video
+        com.funcam.app.model.Engine.v4 = true
+        assertEquals(51, Cameras.all.size)
+        assertEquals(37, Cameras.all.count { !it.isVideo })
         assertEquals(Cameras.all.size, Cameras.all.map { it.id }.toSet().size)
         assertTrue(Cameras.all.all { it.ratios.isNotEmpty() })
-        assertEquals(12, Cameras.all.count { it.isVideo })
         assertTrue(Cameras.all.mapNotNull { it.look.lut }.all { java.io.File("src/main/assets/luts/$it.png").exists() })
     }
 }

@@ -768,10 +768,25 @@ export const CAMERAS = [
   "accentColor": "#B8B8B8",
   "description": "The classic 90s point-and-shoot. Pale, bluish, nostalgic colour with the orange date in the corner.",
   "look": {
+   "highTint": [
+    -0.01,
+    0.01,
+    0.03
+   ],
+   "shadowTint": [
+    0.0,
+    0.01,
+    0.04
+   ],
    "temp": -0.3,
    "contrast": 0.92,
    "saturation": 0.82,
    "fade": 0.1,
+   "grain": 0.3,
+   "halation": 0.15,
+   "bloom": 0.15,
+   "vignette": 0.25,
+   "flash": 0.9,
    "lut": "superia200"
   },
   "ratios": [
@@ -2521,10 +2536,25 @@ export const CAMERAS4 = [
   "accentColor": "#B8B8B8",
   "description": "The classic 90s point-and-shoot. Pale, bluish, nostalgic colour with the orange date in the corner.",
   "look": {
+   "highTint": [
+    -0.01,
+    0.01,
+    0.03
+   ],
+   "shadowTint": [
+    0.0,
+    0.01,
+    0.04
+   ],
    "temp": -0.3,
    "contrast": 0.92,
    "saturation": 0.82,
    "fade": 0.1,
+   "grain": 0.3,
+   "halation": 0.15,
+   "bloom": 0.15,
+   "vignette": 0.25,
+   "flash": 0.9,
    "rolloff": 0.7,
    "halWide": 0.15,
    "glowWide": 0.15,
