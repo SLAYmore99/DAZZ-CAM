@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="FUN CAM Field">
+<meta name="theme-color" content="#e9e6df">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>FUN CAM · FIELD</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header class="plate">
+    <div class="brand"><b>FUN CAM</b><span>FIELD · F-51</span></div>
+    <button class="lcd" id="lcd" aria-label="Customize this camera">
+      <div class="l1"><span id="camName">READY</span><em id="count">00</em></div>
+      <div class="l2" id="lcdInfo">EV ±0.0 · S AUTO · 3:4</div>
+    </button>
+    <button class="slide" id="bMode" aria-label="Photo or video"><span>PHOTO</span><i><b></b></i><span>VIDEO</span></button>
+  </header>
+  <div id="vfwrap">
+    <div id="bezel">
+      <div id="vf">
+        <canvas id="gl"></canvas>
+        <svg id="grid"></svg>
+        <div id="level"><i></i></div>
+        <button id="slow"></button>
+        <div id="rec"><i></i><span>00:00</span></div>
+        <div id="big"></div>
+        <div id="reticle"><div class="sun"><b></b></div></div>
+        <div id="curtain"><i></i><i></i></div>
+      </div>
+    </div>
+  </div>
+  <nav class="keys" id="keys"></nav>
+  <div class="bench">
+    <div class="meter" aria-hidden="true">
+      <svg viewBox="0 0 100 62"><path class="arc" d="M12 54A40 40 0 0 1 88 54"/><path class="hot" d="M76.300 29.500A40 40 0 0 1 88 54"/><g id="mticks"></g>
+        <text x="13" y="61">−2</text><text x="50" y="12" text-anchor="middle">0</text><text x="87" y="61" text-anchor="end">+2</text>
+        <line id="needle" x1="50" y1="56" x2="50" y2="18"/><circle cx="50" cy="56" r="4"/></svg>
+      <span>LIGHT</span>
+    </div>
+    <div class="wheelbox">
+      <div class="ptabs" id="ptabs"></div>
+      <div class="wheelrow"><canvas id="dial"></canvas><button class="lcd mini" id="pval">±0.0</button></div>
+    </div>
+  </div>
+  <div class="drumrow">
+    <div class="drum" id="drum"></div>
+    <button class="key sq" id="bAll" aria-label="All cameras"></button>
+  </div>
+  <footer class="dock">
+    <button id="thumb" aria-label="Roll"><i></i></button>
+    <div class="well"><button id="shutter" aria-label="Shutter"><i></i></button></div>
+    <button class="key round" id="bFlip" aria-label="Flip camera"></button>
+  </footer>
+</div>
+<div id="msg"></div>
+<div id="start">
+  <div class="mark"><i></i></div>
+  <h1>FUN CAM <span>FIELD</span></h1>
+  <p>51 film cameras in one instrument.</p>
+  <button class="key wide" id="bStart">Open camera</button>
+  <p class="err" id="startErr"></p>
+</div>
+<script type="module" src="ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "FUN CAM Field",
+  "short_name": "FUN CAM Field",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e9e6df",
+  "theme_color": "#e9e6df",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
