@@ -8,6 +8,8 @@ const LOOK_DEFAULTS = {
   shadowTint: [0, 0, 0], highTint: [0, 0, 0], mono: 0, halation: 0, halationColor: [1, 0.3, 0.12], bloom: 0, soft: 0, softAll: 0,
   grain: 0, grainSize: 1, noise: 0, vignette: 0, leak: 0, leakColor: [1, 0.42, 0.12], chroma: 0, sharpen: 0, pixel: 0,
   scan: 0, vhs: 0, weave: 0, flicker: 0, dust: 0, interlace: 0, flash: 0.85,
+  // engine v4 (absent from the classic roster, so the classic app renders exactly as before)
+  distort: 0, rolloff: 0, glowWide: 0, halWide: 0, mist: 0, streak: 0, speck: 0, paper: 0,
 };
 const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
 
@@ -255,6 +257,8 @@ export class FilmGL {
     const qw = Math.max(1, w >> 2), qh = Math.max(1, h >> 2);
     if (!this.qa || this.qa.width !== qw || this.qa.height !== qh) {
       this.qa?.release(); this.qb?.release(); this.qa = new Fbo(gl, qw, qh, false); this.qb = new Fbo(gl, qw, qh, false);
+      this.wa?.release(); this.wb?.release();
+      this.wa = new Fbo(gl, Math.max(1, qw >> 2), Math.max(1, qh >> 2), false); this.wb = new Fbo(gl, Math.max(1, qw >> 2), Math.max(1, qh >> 2), false);
     }
   }
 
@@ -277,12 +281,22 @@ export class FilmGL {
     G.f('uFlash', P.flashFired ? L.flash : 0); G.v3('uFlashColor', a.gel || [1, 1, 1]);
     G.i('uFisheye', a.fisheyeC ? 2 : a.fisheyeW ? 1 : 0); G.f('uChroma', L.chroma * k); G.f('uPixel', L.pixel); G.f('uSharpen', L.sharpen);
     G.f('uPrism', a.prism ? 1 : 0); G.f('uVhs', L.vhs); G.f('uWeave', L.weave);
+    G.f('uDistort', L.distort * k); G.f('uRolloff', L.rolloff);
     this.quad();
     qa.bind(); this.downP.use(); this.downP.tex('uSrc', 0, gl.TEXTURE_2D, g.tex); this.downP.v2('uTexel', 1 / qa.width, 1 / qa.height); this.quad();
     const sigma = Math.max(1.5, 0.018 * Math.min(qa.width, qa.height));
     const B = this.blurP;
     qb.bind(); B.use(); B.tex('uSrc', 0, gl.TEXTURE_2D, qa.tex); B.v2('uStep', 1 / qa.width, 0); B.f('uSigma', sigma); this.quad();
     qa.bind(); B.tex('uSrc', 0, gl.TEXTURE_2D, qb.tex); B.v2('uStep', 0, 1 / qa.height); this.quad();
+    // engine v4: a very wide blur at 1/16 size, only for looks that use it
+    const glowWide = L.glowWide * t.glow, halWide = L.halWide * t.glow, mist = L.mist * t.soft + (a.mist ? 0.85 : 0);
+    const wide = glowWide + halWide + mist > 0, wa = this.wa, wb = this.wb;
+    if (wide) {
+      wb.bind(); this.downP.use(); this.downP.tex('uSrc', 0, gl.TEXTURE_2D, qa.tex); this.downP.v2('uTexel', 1 / wb.width, 1 / wb.height); this.quad();
+      const ws = Math.max(1.5, 0.07 * Math.min(wb.width, wb.height));
+      wa.bind(); B.use(); B.tex('uSrc', 0, gl.TEXTURE_2D, wb.tex); B.v2('uStep', 1 / wb.width, 0); B.f('uSigma', ws); this.quad();
+      wb.bind(); B.tex('uSrc', 0, gl.TEXTURE_2D, wa.tex); B.v2('uStep', 0, 1 / wb.height); this.quad();
+    }
     bindTarget();
     const C = this.compP; C.use();
     C.tex('uGraded', 0, gl.TEXTURE_2D, g.tex); C.tex('uBlur', 1, gl.TEXTURE_2D, qa.tex);
@@ -295,6 +309,8 @@ export class FilmGL {
     C.f('uStar', a.star ? 1 : 0); C.f('uVignette', Math.min(1.2, L.vignette * t.vignette)); C.f('uLeak', a.lightLeaks ? L.leak * t.leaks : 0); C.f('uLeakAnim', P.recipe.isVideo ? 1 : 0);
     C.v3('uLeakColor', L.leakColor); C.f('uGrain', L.grain * t.grain); C.f('uGrainSize', L.grainSize); C.f('uNoise', L.noise);
     C.f('uScan', L.scan); C.f('uVhs', L.vhs); C.f('uFlicker', L.flicker); C.f('uDust', L.dust); C.f('uInterlace', L.interlace);
+    C.tex('uWide', 4, gl.TEXTURE_2D, wide ? wb.tex : this.blank); C.f('uGlowWide', glowWide); C.f('uHalWide', halWide); C.f('uMist', Math.min(1.6, mist));
+    C.f('uStreak', L.streak + (a.streak ? 1 : 0)); C.f('uSpeck', P.recipe.isVideo ? 0 : L.speck * Math.min(1.5, t.grain)); C.f('uPaper', L.paper);
     this.quad();
   }
 

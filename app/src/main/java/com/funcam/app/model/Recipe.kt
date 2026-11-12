@@ -77,7 +77,32 @@ data class Look(
     val interlace: Float = 0f,
     /** Strength of the on-camera flash look when the flash fires. */
     val flash: Float = 0.85f,
+    // ---- engine v4 (ignored by the classic edition, see Engine.v4)
+    /** Barrel distortion of a cheap or wide lens. */
+    val distort: Float = 0f,
+    /** Film latitude: soft highlight shoulder. */
+    val rolloff: Float = 0f,
+    /** Very wide veiling glow. */
+    val glowWide: Float = 0f,
+    /** Far red halation. */
+    val halWide: Float = 0f,
+    /** Built-in mist / diffusion. */
+    val mist: Float = 0f,
+    /** Anamorphic blue streaks. */
+    val streak: Float = 0f,
+    /** Dust specks and hairs on stills. */
+    val speck: Float = 0f,
+    /** Instant-print paper texture and chemical edges. */
+    val paper: Float = 0f,
 )
+
+/**
+ * Engine generation. The classic edition (the v0.3 app, kept exactly as it was) runs with v4 off:
+ * the original 42 cameras and none of the newer optics. The DOT, GLASS and FIELD editions run with it on.
+ */
+object Engine {
+    @Volatile var v4: Boolean = true
+}
 
 data class Recipe(
     val id: String,
@@ -96,6 +121,8 @@ data class Recipe(
     val videoFps: Int = 30,
     val manual: Boolean = false,
     val canImport: Boolean = true,
+    /** Added with engine v4: hidden in the classic edition. */
+    val v4: Boolean = false,
     /** Flash on by default (disposables). */
     val flashDefault: Boolean = false,
     /** Text printed on film edges (negative / sprocket frames). */
@@ -127,9 +154,13 @@ data class Accessories(
     val gel: FlashGel = FlashGel.WHITE,
     val doubleExposure: Boolean = false,
     val lightLeaks: Boolean = true,
+    /** Black-mist diffusion filter (engine v4). */
+    val mist: Boolean = false,
+    /** Anamorphic streak filter (engine v4). */
+    val streak: Boolean = false,
 ) {
     val fisheyeMode: Int get() = if (fisheyeC) 2 else if (fisheyeW) 1 else 0
-    val anyLens: Boolean get() = fisheyeW || fisheyeC || prism || star || nd || doubleExposure
+    val anyLens: Boolean get() = fisheyeW || fisheyeC || prism || star || nd || doubleExposure || mist || streak
 }
 
 /** Per-camera user customisation (1 = the camera's own look). Saved per camera. */

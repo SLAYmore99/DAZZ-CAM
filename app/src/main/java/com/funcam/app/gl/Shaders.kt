@@ -1,12 +1,14 @@
 package com.funcam.app.gl
 
 /**
- * FUN CAM render engine v2 (shared verbatim with the web app via tools/gen_web_data.py).
+ * FUN CAM render engine v4 (shared verbatim with the web app via tools/gen_web_data.py).
  *
  *  INPUT      camera OES -> upright, frame accumulation (slow shutter)
  *  GRADE      lens + flash + exposure/WB (linear) -> film LUT -> tone/colour   (picture size)
  *  DOWN       4x box downsample                                                (quarter size)
  *  BLUR       separable Gaussian, run H then V                                 (quarter size)
+ *  WIDE       the same again at 1/16 size: a very wide glow for veiling flare,
+ *             far halation and the mist filter (engine v4, only when a look uses it)
  *  COMPOSITE  glow, halation, softness, leaks, vignette, grain, video artefacts,
  *             date stamp, frames/gates                                         (output size)
  *
@@ -117,6 +119,7 @@ uniform float uFlash;
 uniform vec3 uFlashColor;
 uniform int uFisheye;        // 0 none, 1 wide barrel, 2 circular
 uniform float uChroma, uPixel, uSharpen, uPrism, uVhs, uWeave;
+uniform float uDistort, uRolloff;   // engine v4: cheap-lens barrel distortion, film highlight shoulder
 
 vec3 src(vec2 p) {
     return texture(uSrc, uSrcCrop.xy + clamp(p, 0.0, 1.0) * uSrcCrop.zw).rgb;
@@ -154,6 +157,10 @@ void main() {
         float rs = tan(theta * 0.62) / tan(1.25 * 0.62) * lim;
         vec2 s = rr > 0.0 ? cq / rr * rs : cq;
         p = s / vec2(uAspect, 1.0) + 0.5;
+    }
+    if (uDistort != 0.0) {
+        // barrel distortion that keeps the corners in place (no black edges)
+        p = 0.5 + (p - 0.5) * (1.0 + uDistort * 0.35 * (r2 - 0.25 * (uAspect * uAspect + 1.0)));
     }
     if (uPixel > 0.0) {
         float cells = mix(1200.0, 260.0, uPixel);
@@ -198,6 +205,11 @@ void main() {
         float fall = 1.0 / (1.0 + dot(fc, fc) * 7.0);            // on-camera flash falloff
         float near = smoothstep(0.2, 0.7, luma(lin));             // close bright subjects pop
         lin = lin * (1.0 - 0.4 * uFlash) + uFlash * uFlashColor * (lin * 1.25 * fall + 0.03 * fall + near * 0.08 * fall);
+    }
+    if (uRolloff > 0.0) {
+        // film latitude: highlights roll off into a soft shoulder instead of clipping
+        vec3 over = max(lin - 0.55, 0.0);
+        lin = mix(lin, min(lin, 0.55) + 0.45 * (1.0 - exp(-over / 0.45)) * 1.12, uRolloff);
     }
     c = clamp(linearToSrgb(lin), 0.0, 1.0);
 
@@ -285,6 +297,9 @@ uniform float uVignette, uLeak, uLeakAnim;
 uniform vec3 uLeakColor;
 uniform float uGrain, uGrainSize, uNoise;
 uniform float uScan, uVhs, uFlicker, uDust, uInterlace;
+// engine v4
+uniform sampler2D uWide;      // very wide blur (1/16 size)
+uniform float uGlowWide, uHalWide, uMist, uStreak, uSpeck, uPaper;
 
 // rounded-rect signed distance in picture space (units of picture height)
 float roundRect(vec2 p, vec2 half_, float r) {
@@ -295,7 +310,10 @@ float roundRect(vec2 p, vec2 half_, float r) {
 vec3 frameColorAt(vec2 uv) {
     vec3 b = uFrameColor;
     float n = vnoise(uv * uRes * 0.25, 77u);
-    if (uBorder == 1) return b * (0.97 + 0.03 * n);                      // instant paper
+    if (uBorder == 1) {                                                  // instant paper
+        float fibre = fbm(uv * uRes * vec2(0.012, 0.05), 31u) - 0.5;
+        return b * (0.97 + 0.03 * n) * (1.0 + uPaper * (fibre * 0.022 - 0.006));
+    }
     if (uBorder == 3) return b * (0.93 + 0.07 * vnoise(uv * uRes * 0.08, 5u)); // slide card
     return b * (0.85 + 0.15 * n);                                        // film base
 }
@@ -360,6 +378,27 @@ void main() {
     vec3 glow = B * smoothstep(0.45, 1.0, bl);
     c = 1.0 - (1.0 - c) * (1.0 - clamp(glow * uBloom * 1.75, 0.0, 1.0));
     c += uHalationColor * max(bl - luma(c) * 0.55 - 0.16, 0.0) * uHalation * 2.9;
+    if (uGlowWide + uHalWide + uMist > 0.0) {
+        vec3 W = texture(uWide, p).rgb;
+        float wl = luma(W);
+        // wide veiling glow: the soft "air" around bright areas
+        c = 1.0 - (1.0 - c) * (1.0 - clamp(W * smoothstep(0.3, 0.95, wl) * uGlowWide * 1.1, 0.0, 1.0));
+        // far halation: red light scattered deep in the film base
+        c += uHalationColor * max(wl - luma(c) * 0.92 - 0.05, 0.0) * smoothstep(0.25, 0.7, wl) * uHalWide * 2.6;
+        // black mist diffusion filter: highlights bleed, contrast drops a touch
+        c = mix(c, 1.0 - (1.0 - c) * (1.0 - W * 0.85), uMist * 0.6);
+        c = c * (1.0 - uMist * 0.06) + uMist * 0.025;
+    }
+    if (uStreak > 0.0) {
+        // anamorphic lens: blue horizontal streaks through bright lights
+        vec3 s = vec3(0.0);
+        for (int k = 1; k <= 14; k++) {
+            float t = float(k) * 0.024;
+            float w = pow(1.0 - float(k) / 15.0, 2.0);
+            s += (max(texture(uBlur, p + vec2(t, 0.0)).rgb - 0.62, 0.0) + max(texture(uBlur, p - vec2(t, 0.0)).rgb - 0.62, 0.0)) * w;
+        }
+        c += vec3(0.3, 0.55, 1.0) * luma(s) * uStreak * 0.75;
+    }
     if (uStar > 0.0) {
         vec3 s = vec3(0.0);
         for (int d = 0; d < 4; d++) {
@@ -417,6 +456,27 @@ void main() {
         }
     }
 
+    // still film: a few specks of dust and the odd hair, fixed per shot
+    if (uSpeck > 0.0) {
+        vec2 g = p * vec2(46.0 * uAspect, 46.0);
+        ivec2 id = ivec2(floor(g));
+        vec3 h = rand3(id, uLeakSeed + 311u);
+        if (h.x > 1.0 - 0.006 * uSpeck) {
+            float d = length(fract(g) - (0.2 + 0.6 * h.yz));
+            float sz = 0.05 + 0.12 * fract(h.y * 17.0);
+            c = mix(c, vec3(h.z > 0.35 ? 0.95 : 0.06), smoothstep(sz, sz * 0.3, d) * 0.85);
+        }
+        vec3 hh = rand3(ivec2(5, 2), uLeakSeed + 7u);
+        if (hh.x < 0.45 * uSpeck) {
+            vec2 hc = 0.1 + 0.8 * hh.yz;
+            vec2 dd = (p - hc) * vec2(uAspect, 1.0);
+            float ang = atan(dd.y, dd.x);
+            float hair = abs(length(dd) - 0.035 - 0.014 * sin(ang * 2.0 + hh.x * 20.0));
+            float arc = smoothstep(0.2, 0.6, fract(ang / 6.2832 + hh.y));
+            c = mix(c, vec3(0.9), smoothstep(0.0011, 0.0, hair) * arc * 0.7);
+        }
+    }
+
     // video signal artefacts
     if (uScan > 0.0) c *= 1.0 - uScan * 0.1 * (0.5 + 0.5 * sin(p.y * 960.0 * 3.14159));
     if (uInterlace > 0.0) c *= 1.0 - uInterlace * 0.05 * step(0.5, fract(p.y * 240.0));
@@ -456,7 +516,19 @@ void main() {
     }
 
     c = clamp(c, 0.0, 1.0);
-    vec3 outc = mix(frameColorAt(uv), c, inside);
+    vec3 fcol = frameColorAt(uv);
+    if (uPaper > 0.0 && uBorder == 1) {
+        // instant print: the picture sits in a shallow well, with darker chemical edges
+        vec2 e = min(p, 1.0 - p) * vec2(uAspect, 1.0);
+        float edge = min(e.x, e.y);
+        c *= 1.0 - uPaper * 0.12 * smoothstep(0.014, 0.0, edge);
+        vec2 o2 = max(max(-p, p - 1.0), 0.0) * vec2(uAspect, 1.0);
+        float od = length(o2);
+        fcol *= 1.0 - uPaper * 0.07 * smoothstep(0.012, 0.0, od) * step(0.00001, od);
+        // faint sheen across the print
+        fcol *= 1.0 + uPaper * 0.02 * sin((uv.x + uv.y) * 5.0);
+    }
+    vec3 outc = mix(fcol, c, inside);
     outc = outc * (1.0 - marks.a) + marks.rgb;
     fragColor = vec4(outc, 1.0);
 }

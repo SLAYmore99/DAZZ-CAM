@@ -171,6 +171,8 @@ class FilmPipeline(context: Context) {
     private var gradeFbo: Fbo? = null
     private var qa: Fbo? = null
     private var qb: Fbo? = null
+    private var wa: Fbo? = null
+    private var wb: Fbo? = null
 
     private fun ensure(w: Int, h: Int) {
         if (gradeFbo?.width != w || gradeFbo?.height != h) {
@@ -180,6 +182,8 @@ class FilmPipeline(context: Context) {
         val qh = maxOf(1, h / 4)
         if (qa?.width != qw || qa?.height != qh) {
             qa?.release(); qb?.release(); qa = Fbo(qw, qh); qb = Fbo(qw, qh)
+            wa?.release(); wb?.release()
+            wa = Fbo(maxOf(1, qw / 4), maxOf(1, qh / 4)); wb = Fbo(maxOf(1, qw / 4), maxOf(1, qh / 4))
         }
     }
 
@@ -239,6 +243,8 @@ class FilmPipeline(context: Context) {
         grade.f("uPrism", if (a.prism) 1f else 0f)
         grade.f("uVhs", l.vhs)
         grade.f("uWeave", l.weave)
+        grade.f("uDistort", if (com.funcam.app.model.Engine.v4) l.distort * k else 0f)
+        grade.f("uRolloff", if (com.funcam.app.model.Engine.v4) l.rolloff else 0f)
         GlUtil.drawQuad()
 
         // ---- 2. downsample + 3. gaussian blur at quarter size
@@ -258,6 +264,33 @@ class FilmPipeline(context: Context) {
         blur.tex("uSrc", 0, GLES30.GL_TEXTURE_2D, qb.tex)
         blur.v2("uStep", 0f, 1f / qa.height)
         GlUtil.drawQuad()
+
+        // ---- 3b. engine v4: a very wide blur at 1/16 size, only for looks that use it
+        val v4 = com.funcam.app.model.Engine.v4
+        val glowWide = if (v4) l.glowWide * t.glow else 0f
+        val halWide = if (v4) l.halWide * t.glow else 0f
+        val mist = if (v4) (l.mist * t.soft + if (a.mist) 0.85f else 0f) else 0f
+        val wide = glowWide + halWide + mist > 0f
+        val wa = wa!!
+        if (wide) {
+            val wb = wb!!
+            wb.bind()
+            down.use()
+            down.tex("uSrc", 0, GLES30.GL_TEXTURE_2D, qa.tex)
+            down.v2("uTexel", 1f / wb.width, 1f / wb.height)
+            GlUtil.drawQuad()
+            val ws = maxOf(1.5f, 0.07f * minOf(wb.width, wb.height))
+            wa.bind()
+            blur.use()
+            blur.tex("uSrc", 0, GLES30.GL_TEXTURE_2D, wb.tex)
+            blur.v2("uStep", 1f / wb.width, 0f)
+            blur.f("uSigma", ws)
+            GlUtil.drawQuad()
+            wb.bind()
+            blur.tex("uSrc", 0, GLES30.GL_TEXTURE_2D, wa.tex)
+            blur.v2("uStep", 0f, 1f / wb.height)
+            GlUtil.drawQuad()
+        }
 
         // ---- 4. composite into the target
         bindTarget()
@@ -295,11 +328,18 @@ class FilmPipeline(context: Context) {
         comp.f("uFlicker", l.flicker)
         comp.f("uDust", l.dust)
         comp.f("uInterlace", l.interlace)
+        comp.tex("uWide", 4, GLES30.GL_TEXTURE_2D, if (wide) wb!!.tex else blank)
+        comp.f("uGlowWide", glowWide)
+        comp.f("uHalWide", halWide)
+        comp.f("uMist", mist.coerceAtMost(1.6f))
+        comp.f("uStreak", if (v4) l.streak + (if (a.streak) 1f else 0f) else 0f)
+        comp.f("uSpeck", if (v4 && !p.recipe.isVideo) l.speck * t.grain.coerceAtMost(1.5f) else 0f)
+        comp.f("uPaper", if (v4) l.paper else 0f)
         GlUtil.drawQuad()
     }
 
     fun release() {
-        gradeFbo?.release(); qa?.release(); qb?.release()
+        gradeFbo?.release(); qa?.release(); qb?.release(); wa?.release(); wb?.release()
         luts.release()
         GlUtil.deleteTexture(blank)
     }
