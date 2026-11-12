@@ -38,7 +38,7 @@ vignette, grain and sharpness. Copying *behaviour* (features, UI flow) is fine; 
   APK as a file with `SendUserFile` when asked; it lives at `build/FUN-CAM.apk` after
   `assembleRelease`.
 - **"Commit and push everything."** A stop hook also enforces a clean working tree, so commit
-  and push every change to `claude/dreamy-gauss-27k7dh`.
+  and push every change to the session's working branch (v0.4 was built on `claude/clever-dijkstra-ij8cnl`).
 - **Keep the memory vault updated.** The user has a local Obsidian vault ("VAULT FOR CLAUDE
   MEMORY") that cloud sessions can't reach. Mirror the notes in the repo's `vault/` folder
   (`Home.md`, `Projects/FUN CAM.md`, `Sessions/*.md`); the user copies them over at the end
@@ -58,59 +58,45 @@ vignette, grain and sharpness. Copying *behaviour* (features, UI flow) is fine; 
 - **Be honest about what wasn't tested** (no real phone or iPhone in the cloud). Say exactly
   what was verified and how.
 
-## 3. Current state (v0.3.0)
+## 3. Current state (v0.4.0)
 
-**Links**
-- **iPhone (Safari web app):** https://slaymore99.github.io/DAZZ-CAM/. Open in Safari, then
-  Share → Add to Home Screen.
-- **APK + IPA downloads:** https://github.com/SLAYmore99/DAZZ-CAM/releases/tag/latest, a
-  rolling pre-release updated by CI.
-- **Repo:** public. **Working branch:** `claude/dreamy-gauss-27k7dh`. `main` hasn't been
-  merged yet.
+**Four apps from one engine** (they install side by side; see README "v0.4"):
 
-**Features**
-- **42 cameras (30 photo, 12 video):** each recreates the *real* camera or film that a Dazz
-  camera imitates. The table is in `docs/CAMERAS.md`.
-- **Engine:** live GPU film pipeline; preview = output (same shader for preview, stills and
-  video).
-- **Film colour:** 3D LUTs, 25 stocks from the RawTherapee HaldCLUT pack (CC BY-SA 4.0),
-  plus custom `ccd`, `grd`, `infra`, `vhs` and `dcr` looks.
-- **Effects:**
-  - real Gaussian bloom and red halation
-  - organic light leaks
-  - integer-hash film grain
-  - soft corners, vignette, chromatic aberration
-  - gate weave, flicker, dust and hairs
-  - VHS chroma bleed and tracking noise; camcorder interlace
-- **Frames:**
-  - instant prints (6 frame colours)
-  - black film frame
-  - 120 negative with orange edge print
-  - panorama exposed over the sprocket holes
-  - slide mount
-  - rounded 8 mm / 16 mm gates
-  - ragged toy-camera edges
-- **Date stamps:** glowing 7-segment orange film date (`'26 11 10`), digicam date, camcorder,
-  VHS `PLAY`.
-- **Capture modes:** single; half-frame (2 shots); collage (4 shots on a white card); 16-lens
-  4×4 grid; 4-lens 3D wiggle clip; double exposure; long exposure (frame accumulation).
-- **Video:** H.264 + AAC at each camera's frame rate; slow shutter by frame accumulation (plus
-  a real sensor exposure when ISO is manual and the hardware allows).
-- **UI:**
-  - viewfinder showing the exact output frame
-  - zoom pills
-  - adjust chips: EXP, TEMP, TINT, S, ISO, FPS
-  - top bar: flash, timer, ratio, adjust, ✨ lenses (Fisheye W/C, prism, star, ND, flash gels,
-    leaks) and a ⋮ menu (grid, import, Darkroom, settings)
-  - closed-loop snapping camera wheel with haptics, an all-cameras grid button, and Customize
-  - gallery | shutter | flip
-- **Darkroom:** re-develop saved "negatives" with any camera, exposure or white balance.
-- **Import:** develop photos from the gallery.
+| Edition | Reference | Android | Web |
+|---|---|---|---|
+| DOT | Nothing OS | `FUN-CAM-DOT.apk` (`com.funcam.app.dot`) | `/DAZZ-CAM/dot/` |
+| GLASS | iOS Camera | `FUN-CAM-GLASS.apk` (`.glass`) | `/DAZZ-CAM/glass/` |
+| FIELD | Braun / Teenage Engineering hardware | `FUN-CAM-FIELD.apk` (`.field`) | `/DAZZ-CAM/field/` |
+| Classic | the v0.3 UI, **kept as it was** | `FUN-CAM.apk` (`com.funcam.app`) | `/DAZZ-CAM/` |
+
+- **APKs:** https://github.com/SLAYmore99/DAZZ-CAM/releases/tag/latest (rolling, built by CI).
+- **Web chooser:** https://slaymore99.github.io/DAZZ-CAM/editions/
+- **Working branch:** `claude/clever-dijkstra-ij8cnl` (v0.3 lives on `claude/dreamy-gauss-27k7dh`).
+  `main` hasn't been merged yet.
+- **The user has not yet said which edition they prefer.** Ask, then build on that one.
+  "Leave the last version as it is" was their instruction: don't change the classic edition.
+
+**Engine v4** (new editions only; classic runs with `Engine.v4 = false` / `CAMERAS` without v4
+fields): highlight shoulder, 1/16-size wide blur for veiling glow + far halation + Mist lens,
+anamorphic Streak, barrel distortion, dust specks on stills, instant-paper texture.
+**51 cameras** (37 photo, 14 video); the 9 new ones are flagged `v4 = true`.
+
+**Shared by DOT, GLASS and FIELD:** tap focus, hold to lock AE/AF, vertical drag = exposure,
+sideways swipe = next camera, pinch zoom; a dial with detents (EV, WB, tint, shutter, ISO,
+zoom, FPS); Photo/Video switch; live look previews; favourites; grid, level, histogram / light
+meter; one "Auto" reset; Customize one tap away; slow-shutter badge; per-edition shutter
+animation.
 
 ## 4. Architecture
 
 ```
+app/src/classic|dot|glass|field/   one source set per edition: ui/Edition.kt defines EditionRoot(vm);
+                       classic also holds the v0.3 CameraScreen.kt and Sheets.kt. Flavors set BuildConfig.V4.
+app/src/test*/         FrameSpecTest + Roborazzi screenshot tests (PNG to app/build/screens/)
 app/src/main/java/com/funcam/app/
+  ui/kit/              shared by the v4 editions: Skin (DOT/GLASS/FIELD), Dial, Widgets (switch, slider, pill,
+                       tile, KSheet), Panels (cameras, lenses, customize, settings), Viewfinder (gestures,
+                       CameraSnapRow), Host (lifecycle, panels, messages)
   gl/Shaders.kt        INPUT (OES → upright + accumulation) → GRADE (lens, flash, WB, 3D LUT, tone)
                        → DOWN (¼) → BLUR (separable Gaussian H,V) → COMPOSITE (glow, halation, leaks,
                        grain, video artefacts, stamp, frames). COMMON block holds the PCG hash and noise.
@@ -124,7 +110,11 @@ app/src/main/java/com/funcam/app/
   video/Encoders.kt    LiveRecorder (H.264 + AAC + muxer), SimpleVideoEncoder
   ui/                  CameraScreen (wheel, badge, chips), Sheets (picker, lenses, settings, Customize),
                        Darkroom, CameraIcon (shaded original artwork), CamViewModel
-web/                   WebGL2 port (gl.js, app.js, icons.js, roll.js IndexedDB, sw.js); data.js is GENERATED
+web/                   classic web app (index.html, app.js) + WebGL2 engine (gl.js), icons.js, roll.js, sw.js;
+                       data.js is GENERATED (CAMERAS = classic roster, CAMERAS4 = engine-v4 roster)
+web/core.js, kit.js    v4 core (camera, state, capture, meter, look previews) and shared UI parts
+web/dot|glass|field/   one edition each: index.html, style.css, ui.js, manifest, icons
+web/editions/          chooser page
 ios-app/               Capacitor 8 (SPM) shell around web/; scripts/configure-ios.sh sets Info.plist and the icon
 tools/
   make_luts.py         HaldCLUT → 33³ LUT PNGs (33×1089; row = g + b·33, col = r) + custom looks
@@ -139,7 +129,9 @@ vault/                 mirror of the user's Obsidian notes
 
 **Build and test**
 ```bash
-./gradlew testDebugUnitTest lintDebug assembleRelease   # Android SDK platform 35 + build-tools 35 (installed to /opt/android-sdk in past sessions)
+./gradlew testDotDebugUnitTest lintDotDebug assembleRelease   # task names need the edition (Classic/Dot/Glass/Field); assembleRelease builds all four
+# Android SDK: install cmdline-tools + platforms;android-35 + build-tools;35.0.0 to /opt/android-sdk, then echo sdk.dir=/opt/android-sdk > local.properties
+# APKs: app/build/outputs/apk/<edition>/release/app-<edition>-release.apk (copied to build/FUN-CAM[-DOT|-GLASS|-FIELD].apk)
 python3 tools/gen_web_data.py                           # ALWAYS after editing Shaders.kt or Cameras.kt
 python3 -m http.server -d web 8765                      # then test with Playwright (Chromium is preinstalled)
 ```
@@ -151,6 +143,14 @@ imports `../data.js` and `../gl.js`, calls `film.loadLuts(...)`, then `film.deve
 `--use-fake-device-for-media-stream --use-file-for-fake-video-capture=<file.y4m>`. Make the
 y4m from a real photo with ffmpeg. Test photos came from picsum.photos (testing only, not
 shipped).
+
+**Seeing Android screens without a phone:** `./gradlew testGlassDebugUnitTest` renders the Compose
+screens with Robolectric + Roborazzi into `app/build/screens/*.png` (`FilmRenderer.headless = true`,
+so the viewfinder is empty). Robolectric needs `android-all-instrumented` jars for SDK 34 and 35;
+if its own download fails behind the proxy, fetch them with `curl -L` into
+`~/.m2/repository/org/robolectric/android-all-instrumented/<version>/` (jar, pom and their .sha512).
+**Web editions:** `web/_test/ui.js <edition> <outPrefix> [script]` (git-ignored) opens an edition on a
+phone-sized page with a fake camera. picsum.photos timed out in v0.4; images.unsplash.com worked.
 
 ## 5. Research findings (sources in docs/CAMERAS.md)
 - **Dazz menu groups:** Digital · Video · Vintage 135 · Vintage 120 · Inst · Accessories.
@@ -214,6 +214,14 @@ shipped).
   the installer's Apple ID (7-day re-sign on free accounts). TestFlight needs a $99/yr Apple
   Developer account (signing secrets in CI). `getUserMedia` in WKWebView works on iOS 14.3+;
   camera permission may be asked twice. Not yet verified on a device.
+- **Generator gotcha:** `gen_web_data.py` reads each `Look(...)` up to the first `),` at a line end.
+  Never end a line inside a `Look` with a `V3(...),`; keep V3 values mid-line. (This silently cut
+  Sure 85's look short on the web from v0.2 until v0.4.)
+- **SurfaceView can't be clipped** to rounded corners; `kit/Viewfinder.kt` paints the corners over it.
+- **Signing:** release builds use the debug key, which differs per machine and CI run, so an update
+  needs an uninstall first. Do not commit a keystore: a commit containing one was blocked. A stable
+  key needs a GitHub Actions secret that the user sets up.
+- **Gradle task names are ambiguous without the edition** (`testDebugUnitTest` fails).
 - **Cloud-session limits:** no KVM (no Android emulator); WebKit isn't installed (test web in
   Chromium only); the GitHub API `/pages` endpoint is blocked by the proxy; destructive
   wildcard `rm -rf *` is blocked by a safety check, so use fresh directories instead.
@@ -222,12 +230,14 @@ shipped).
   `-v26`.
 
 ## 7. Open items / roadmap
-1. **Real-device testing:** the Android APK (rotation fix, wheel, slow shutter, video), the
-   iPhone IPA via Sideloadly, and the Safari site on a real iPhone.
-2. **Match the looks:** waiting on the user's iPhone-vs-Dazz pairs in `reference/`
-   (`<camera>_orig_N.jpg` + `<camera>_target_N.jpg`; Dazz's import feature gives
-   pixel-aligned pairs). Run `tools/match_look.py`, point the camera's `Look(lut = "m_<name>")`
-   at the result, and show a three-way comparison.
-3. **Kino** should be landscape-aware (rotate output when the phone is held sideways).
-4. **Original frame/texture packs** (paper grain, scan edges, dust overlays), generated in code.
-5. **Possibly:** a PR to merge into `main`; TestFlight; Play Store listing.
+1. **Real-device testing of DOT, GLASS and FIELD** (nothing in v0.4 has run on a phone): live
+   viewfinder under the painted corners, haptics, focus lock, level, look previews (they grab a
+   full-res frame; check speed), dial feel, performance.
+2. **The user's pick** between the editions, then polish that one.
+3. **Match the looks:** still waiting on iPhone-vs-Dazz pairs in `reference/` (see `docs/MATCHING.md`).
+4. **In-app roll on Android** for the new editions (they open the system gallery today).
+5. **Kino / Neon 800T** should be landscape-aware.
+6. **iOS IPA** wraps the classic web app only; the new editions are web-only for now (user asked to
+   skip the iOS app).
+7. **Stable signing key** via a GitHub secret, so updates install over the old app.
+8. **Possibly:** a PR to merge into `main`; TestFlight; Play Store listing.

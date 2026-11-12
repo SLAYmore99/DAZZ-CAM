@@ -22,14 +22,22 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Check the web app's looks match the Android sources
         run: python3 tools/gen_web_data.py && git diff --exit-code web/data.js
-      - name: Test, lint and build
-        run: ./gradlew testClassicDebugUnitTest lintClassicDebug assembleRelease --no-daemon
-      - name: Rename APK
-        run: cp app/build/outputs/apk/classic/release/app-classic-release.apk FUN-CAM.apk
+      - name: Test, lint and build all four editions
+        run: ./gradlew testClassicDebugUnitTest testDotDebugUnitTest testGlassDebugUnitTest testFieldDebugUnitTest lintClassicDebug lintDotDebug lintGlassDebug lintFieldDebug assembleRelease --no-daemon
+      - name: Rename APKs
+        run: |
+          cp app/build/outputs/apk/classic/release/app-classic-release.apk FUN-CAM.apk
+          cp app/build/outputs/apk/dot/release/app-dot-release.apk FUN-CAM-DOT.apk
+          cp app/build/outputs/apk/glass/release/app-glass-release.apk FUN-CAM-GLASS.apk
+          cp app/build/outputs/apk/field/release/app-field-release.apk FUN-CAM-FIELD.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: FUN-CAM-apk
-          path: FUN-CAM.apk
+          name: FUN-CAM-apks
+          path: FUN-CAM*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens
+          path: app/build/screens
       - name: Update the "latest" release (shareable download link)
         if: github.ref_type == 'branch'
         uses: softprops/action-gh-release@v2
@@ -37,9 +45,9 @@ jobs:
           tag_name: latest
           name: FUN CAM — latest build
           prerelease: true
-          files: FUN-CAM.apk
+          files: FUN-CAM*.apk
       - name: Publish release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: FUN-CAM.apk
+          files: FUN-CAM*.apk

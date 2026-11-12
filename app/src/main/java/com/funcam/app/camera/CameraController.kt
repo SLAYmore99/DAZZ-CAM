@@ -131,7 +131,7 @@ class CameraController(private val context: Context, private val renderer: FilmR
     /**
      * Tap to focus. (x, y) are 0..1 in the upright camera frame, y down.
      */
-    fun focus(x: Float, y: Float, rotation: Int) {
+    fun focus(x: Float, y: Float, rotation: Int, lock: Boolean = false) {
         val cam = camera ?: return
         val ux = if (isFront) 1f - x else x
         val (bx, by) = when (rotation) {
@@ -141,9 +141,14 @@ class CameraController(private val context: Context, private val renderer: FilmR
             else -> ux to y
         }
         val point = SurfaceOrientedMeteringPointFactory(1f, 1f).createPoint(bx, by)
-        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-            .setAutoCancelDuration(4, TimeUnit.SECONDS).build()
-        cam.cameraControl.startFocusAndMetering(action)
+        val builder = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+        // locked focus and exposure stay until unlockFocus(); a plain tap returns to automatic after a few seconds
+        if (lock) builder.disableAutoCancel() else builder.setAutoCancelDuration(4, TimeUnit.SECONDS)
+        cam.cameraControl.startFocusAndMetering(builder.build())
+    }
+
+    fun unlockFocus() {
+        camera?.cameraControl?.cancelFocusAndMetering()
     }
 
     /**

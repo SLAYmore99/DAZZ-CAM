@@ -2,7 +2,7 @@
 
 ## Projects
 - [[FUN CAM]]: a free, open-source Android retro film camera inspired by the iPhone-only app
-  Dazz Cam. Repo `slaymore99/dazz-cam`, branch `claude/dreamy-gauss-27k7dh`.
+  Dazz Cam. Repo `slaymore99/dazz-cam`, branch `claude/clever-dijkstra-ij8cnl`. Since v0.4 it ships as four apps: DOT, GLASS, FIELD and Classic.
 
 ## Preferences / context
 - The user has always used Android and wanted a Dazz Cam-style app on it.
@@ -16,3 +16,4 @@
 - [[2026-11-10 FUN CAM preview fix + iPhone web app]]
 - [[2026-11-10 FUN CAM v0.2 overhaul]]
 - [[2026-11-10 FUN CAM v0.3 wheel + iOS app]]
+- [[2026-11-12 FUN CAM v0.4 three editions]]

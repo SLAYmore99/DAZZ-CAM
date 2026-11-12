@@ -178,10 +178,135 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         controller.setZoom(zoom)
     }
 
-    fun tapFocus(x: Float, y: Float) {
+    fun tapFocus(x: Float, y: Float, lock: Boolean = false) {
         // map viewfinder (picture-area) coords to the full upright camera frame
         val crop = FrameSpec.crop(renderer.cameraAspect, previewImgAspect)
-        controller.focus(crop[0] + x * crop[2], crop[1] + y * crop[3], renderer.rotationDegrees)
+        controller.focus(crop[0] + x * crop[2], crop[1] + y * crop[3], renderer.rotationDegrees, lock)
+        focusLocked = lock
+    }
+
+    fun unlockFocus() {
+        if (focusLocked) { controller.unlockFocus(); focusLocked = false }
+    }
+
+    // ================================================================ engine-v4 editions (DOT, GLASS, FIELD)
+    var focusLocked by mutableStateOf(false)
+        private set
+    var histogramOn by mutableStateOf(prefs.getBoolean("hist", false))
+    var levelOn by mutableStateOf(false)
+        private set
+    /** Sideways tilt of the phone in degrees, while the level is on. */
+    var tilt by mutableFloatStateOf(0f)
+        private set
+    /** Metered brightness in stops around a normal exposure (plus your exposure setting). */
+    var meterEv by mutableFloatStateOf(0f)
+        private set
+    var histogram by mutableStateOf(FloatArray(24))
+        private set
+    /** Average colour of the scene, for interfaces that tint themselves with it. */
+    var sceneColor by mutableStateOf(floatArrayOf(0.2f, 0.2f, 0.22f))
+        private set
+    var favourites by mutableStateOf(prefs.getStringSet("favs", emptySet())!!.toSet())
+        private set
+    var shots by mutableIntStateOf(prefs.getInt("shots", 0))
+        private set
+    /** Small renders of every camera's look on the current scene, by camera id. */
+    var lookPreviews by mutableStateOf<Map<String, Bitmap>>(emptyMap())
+        private set
+    private var previewJob: kotlinx.coroutines.Job? = null
+
+    val isVideoMode: Boolean get() = recipe.isVideo
+    val tuned: Boolean get() = !tweak.isDefault
+    /** True when anything is off automatic, so the interface can offer one "back to auto". */
+    val dirty: Boolean get() = exposure != 0f || temp != 0f || tint != 0f || shutter != 0f || iso != 0
+
+    fun cameras(video: Boolean = isVideoMode): List<Recipe> = Cameras.all.filter { it.isVideo == video }
+
+    /** Favourites first, then the rest, for the current mode. */
+    fun orderedCameras(video: Boolean = isVideoMode): List<Recipe> =
+        cameras(video).let { l -> l.filter { it.id in favourites } + l.filter { it.id !in favourites } }
+
+    fun setVideoMode(video: Boolean) {
+        if (video == isVideoMode) return
+        selectRecipe(Cameras.byId(prefs.getString(if (video) "lastVideo" else "lastPhoto", if (video) "classicv" else "sure85")))
+    }
+
+    fun toggleFavourite(id: String) {
+        favourites = if (id in favourites) favourites - id else favourites + id
+        prefs.edit().putStringSet("favs", favourites).apply()
+    }
+
+    fun auto() {
+        exposure = 0f; temp = 0f; tint = 0f
+        unlockFocus()
+        setManualValues(iso = 0, shutter = 0f)
+    }
+
+    fun setRatio(i: Int) {
+        if (i == ratioIndex || i !in recipe.ratios.indices) return
+        ratioIndex = i
+        prefs.edit().putInt("ratio_" + recipe.id, ratioIndex).apply()
+        resetMulti()
+        sync()
+    }
+
+    fun setHistogram(on: Boolean) { histogramOn = on; prefs.edit().putBoolean("hist", on).apply() }
+
+    private var sensorListener: android.hardware.SensorEventListener? = null
+    fun setLevel(on: Boolean) {
+        val sm = ctx.getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager ?: return
+        sensorListener?.let { sm.unregisterListener(it) }
+        sensorListener = null
+        if (on) {
+            val sensor = sm.getDefaultSensor(android.hardware.Sensor.TYPE_GRAVITY) ?: sm.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
+            if (sensor == null) { message = "This phone has no motion sensor"; return }
+            val l = object : android.hardware.SensorEventListener {
+                override fun onSensorChanged(e: android.hardware.SensorEvent) {
+                    val t = Math.toDegrees(kotlin.math.atan2(e.values[0].toDouble(), e.values[1].toDouble())).toFloat()
+                    tilt += (-t - tilt) * 0.25f
+                }
+                override fun onAccuracyChanged(s: android.hardware.Sensor?, a: Int) {}
+            }
+            sm.registerListener(l, sensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+            sensorListener = l
+        }
+        levelOn = on
+    }
+
+    /** Starts the live light meter (call once from an edition that shows it). */
+    fun startMeter() {
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        renderer.onMeter = { rgb, hist ->
+            main.post {
+                val mean = 0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2]
+                val ev = (kotlin.math.ln((mean.coerceAtLeast(0.02f) / 0.4f).toDouble()) / kotlin.math.ln(2.0)).toFloat() + exposure
+                meterEv += (ev - meterEv) * 0.35f
+                histogram = hist
+                sceneColor = FloatArray(3) { sceneColor[it] + (rgb[it] - sceneColor[it]) * 0.3f }
+            }
+        }
+    }
+
+    /** Renders every camera of the current mode on a small copy of the scene. Safe to call often; the last call wins. */
+    fun refreshLookPreviews(video: Boolean = isVideoMode) {
+        if (FilmRenderer.headless || recording || busy) return
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
+            try {
+                val raw = grabRaw()
+                val k = 300f / maxOf(raw.width, raw.height)
+                val small = Bitmap.createScaledBitmap(raw, (raw.width * k).toInt().coerceAtLeast(8), (raw.height * k).toInt().coerceAtLeast(8), true)
+                raw.recycle()
+                for (r in orderedCameras(video)) {
+                    val p = RenderParams(recipe = r, ratio = Ratio(4, 5), acc = Accessories(lightLeaks = acc.lightLeaks), borderOn = false, stampOn = false,
+                        tweak = Tweak.decode(prefs.getString("tw_" + r.id, null)))
+                    val out = processor.develop(small, p, 0.8f, 4242, System.currentTimeMillis(), null, 220)
+                    lookPreviews = lookPreviews + (r.id to out)
+                }
+                small.recycle()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     // ---------------------------------------------------------------- selections
@@ -193,7 +318,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
         recipe = r
         tweak = Tweak.decode(prefs.getString("tw_" + r.id, null))
         ratioIndex = prefs.getInt("ratio_" + r.id, 0).coerceIn(0, r.ratios.lastIndex)
-        prefs.edit().putString("recipe", r.id).apply()
+        prefs.edit().putString("recipe", r.id).putString(if (r.isVideo) "lastVideo" else "lastPhoto", r.id).apply()
         applyRecipeDefaults(r)
         flashOn = r.flashDefault
         controller.setTorch(r.isVideo && flashOn)
@@ -458,6 +583,8 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
     private fun onSaved(uri: Uri?, thumb: Bitmap?, video: Boolean) {
         if (uri == null) { message = "Couldn't save to gallery"; return }
         lastUri = uri; lastThumb = thumb; lastIsVideo = video
+        shots++
+        prefs.edit().putInt("shots", shots).apply()
     }
 
     private fun videoThumb(file: File): Bitmap? = try {
@@ -568,6 +695,7 @@ class CamViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         recorder?.let { rec -> renderer.stopEncoding { rec.finish() } }
+        sensorListener?.let { (ctx.getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager)?.unregisterListener(it) }
         controller.unbind()
         renderer.release()
         processor.release()

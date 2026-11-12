@@ -85,6 +85,11 @@ class FilmRenderer(private val context: Context) {
     private var frameDt = 1f / 30f
     private val grabs = ArrayList<(Bitmap) -> Unit>()
 
+    /** Light meter: called on the GL thread a few times a second with mean RGB (0..1) and a 24-bin brightness histogram. */
+    @Volatile var onMeter: ((FloatArray, FloatArray) -> Unit)? = null
+    private var meterFbo: Fbo? = null
+    private val meterBuf = java.nio.ByteBuffer.allocateDirect(32 * 24 * 4).order(java.nio.ByteOrder.nativeOrder())
+
     /** Current look; written from the UI thread. */
     @Volatile var params: RenderParams? = null
     /** Simulated shutter time in seconds. Longer than a frame => motion trails. */
@@ -223,6 +228,29 @@ class FilmRenderer(private val context: Context) {
                 val bmp = GlUtil.readPixels(g.width, g.height)
                 val list = ArrayList(grabs); grabs.clear()
                 list.forEach { it(bmp) }
+            }
+
+            // 2b. light meter + histogram from a tiny copy of the frame
+            val meterCb = onMeter
+            if (meterCb != null && frameCount % 8 == 0) {
+                val m = meterFbo ?: Fbo(32, 24).also { meterFbo = it }
+                m.bind()
+                copy(dst.tex, flipY = false)
+                meterBuf.rewind()
+                GLES30.glReadPixels(0, 0, 32, 24, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, meterBuf)
+                val rgb = FloatArray(3)
+                val hist = FloatArray(24)
+                for (i in 0 until 32 * 24) {
+                    val r = (meterBuf.get(i * 4).toInt() and 0xFF) / 255f
+                    val g = (meterBuf.get(i * 4 + 1).toInt() and 0xFF) / 255f
+                    val b = (meterBuf.get(i * 4 + 2).toInt() and 0xFF) / 255f
+                    rgb[0] += r; rgb[1] += g; rgb[2] += b
+                    hist[minOf(23, ((0.2126f * r + 0.7152f * g + 0.0722f * b) * 24).toInt())]++
+                }
+                for (k in 0..2) rgb[k] /= 32f * 24f
+                val mx = hist.max().coerceAtLeast(1f)
+                for (k in hist.indices) hist[k] /= mx
+                meterCb(rgb, hist)
             }
 
             val p = params ?: return
@@ -369,7 +397,7 @@ class FilmRenderer(private val context: Context) {
         post {
             try {
                 egl.makeCurrent(pbuffer)
-                accA?.release(); accB?.release(); grabFbo?.release(); outFbo?.release()
+                accA?.release(); accB?.release(); grabFbo?.release(); outFbo?.release(); meterFbo?.release()
                 film.release()
                 display?.let { egl.releaseSurface(it) }
                 encoder?.let { egl.releaseSurface(it) }

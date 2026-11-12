@@ -17,3 +17,17 @@ The grade → bloom → composite structure and the integer PCG hash used for gr
 approach of **FilmCamera-Android** by Yahia (MIT licence),
 https://github.com/YahiaAngelo/FilmCamera-Android. The PCG hash itself is from Jarzynski &
 Olano, "Hash Functions for GPU Rendering" (JCGT 2020).
+
+## Fonts (engine-v4 editions)
+
+- **Doto** (dot-matrix display type in the DOT edition), SIL Open Font License 1.1.
+  A static subset is shipped as `web/fonts/doto_bold.woff2` and `app/src/main/res/font/doto_bold.ttf`.
+- **Space Grotesk** (labels in the FIELD edition), SIL Open Font License 1.1.
+  Static subsets: `grotesk_medium`, `grotesk_bold`.
+
+Licence texts: `web/fonts/OFL-Doto.txt`, `web/fonts/OFL-SpaceGrotesk.txt`.
+
+## Test-only tools
+
+Robolectric (MIT) and Roborazzi (Apache 2.0) render the Android screens on the JVM for screenshot
+tests. They are not part of the app.

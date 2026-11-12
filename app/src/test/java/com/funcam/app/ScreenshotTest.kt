@@ -26,13 +26,17 @@ import org.robolectric.annotation.GraphicsMode
 class ScreenshotTest {
     @get:Rule val rule = createComposeRule()
 
-    @Test
-    fun cameraScreen() {
+    private fun vm(): CamViewModel {
         FilmRenderer.headless = true
         Engine.v4 = BuildConfig.V4
-        val vm = CamViewModel(ApplicationProvider.getApplicationContext<Application>())
-        rule.setContent { EditionRoot(vm) }
-        rule.waitForIdle()
-        rule.onRoot().captureRoboImage("build/screens/${BuildConfig.FLAVOR}-camera.png")
+        return CamViewModel(ApplicationProvider.getApplicationContext<Application>())
     }
+
+    private fun shoot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
+        rule.setContent(content)
+        rule.waitForIdle()
+        rule.onRoot().captureRoboImage("build/screens/${BuildConfig.FLAVOR}-$name.png")
+    }
+
+    @Test fun cameraScreen() { val vm = vm(); shoot("camera") { EditionRoot(vm) } }
 }

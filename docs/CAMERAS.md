@@ -67,3 +67,20 @@ Dazz.
 ## Accessories
 Fisheye W (full-frame), Fisheye C (circular), Prism, Star, ND, Flash colour gels, double
 exposure, light leaks on/off, date stamp on/off.
+
+## Added in engine v4 (DOT, GLASS and FIELD editions)
+
+These are FUN CAM's own additions, not counterparts of another app's cameras. Their colour comes
+from formulas in `tools/make_luts.py`, except X-Pro, which uses the cross-process film LUT.
+
+| Camera | Group | What it recreates |
+|---|---|---|
+| Cine 800T | Vintage 135 | Tungsten cinema negative at night: teal shadows, strong red halation around lights |
+| Gold 200 | Vintage 135 | Consumer daylight film: golden highlights, warm skin, rich reds |
+| Purple Haze | Vintage 135 | Colour-shifting film: greens turn violet, blues go teal |
+| Bleach | Vintage 135 | Bleach bypass: low saturation, hard contrast, silvery |
+| X-Pro | Vintage 135 | Cross-processed slide film in a toy camera |
+| Tintype | Vintage 120 | Wet-plate collodion: blue-sensitive, brown-black tones, dust, soft swirly edges |
+| Night Shot | Digital | Camcorder night vision: green phosphor, noise, scan lines |
+| Neon 800T | Video | Cine 800T with anamorphic blue streaks, 2.39:1, 24 fps |
+| Night Shot V | Video | Night-vision camcorder video with date and time |

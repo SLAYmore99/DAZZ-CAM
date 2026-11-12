@@ -2,8 +2,8 @@
 type: project
 status: active
 repo: slaymore99/dazz-cam
-branch: claude/dreamy-gauss-27k7dh
-updated: 2026-11-10
+branch: claude/clever-dijkstra-ij8cnl
+updated: 2026-11-12
 tags: [android, camera, kotlin, opengl, open-source]
 ---
 
@@ -27,6 +27,41 @@ source (MIT). Every camera is free, with no paywall.
 - **Downloads (APK + IPA):** https://github.com/SLAYmore99/DAZZ-CAM/releases/tag/latest
 - **Live-site test (Chromium iPhone 14 emulation, fake camera):** camera, wheel loop, photo
   save, slow badge, manifest and service worker all OK. Not yet tested in real iOS Safari.
+
+## Update 2026-11-12: v0.4.0, three new interfaces + engine v4
+The user asked for three completely revamped versions (Nothing UI, iOS Camera, and one of my
+choice), better filters, an APK and a Safari version for each, and the old version left alone.
+- **Four apps now, installable side by side:**
+  - **DOT** (Nothing-style): monochrome dot-matrix, red accent, glyph-ring shutter, camera
+    names in a ticker. `FUN-CAM-DOT.apk`, https://slaymore99.github.io/DAZZ-CAM/dot/
+  - **GLASS** (iOS Camera-style): translucent controls, live looks strip, control tray,
+    island pill, scene-tinted background. `FUN-CAM-GLASS.apk`, .../glass/
+  - **FIELD** (my pick: Braun / Teenage Engineering hardware-instrument style): bone or
+    graphite body, keys, LCD, thumbwheel, light-meter needle, orange shutter.
+    `FUN-CAM-FIELD.apk`, .../field/
+  - **Classic**: the v0.3 interface, untouched (42 cameras, engine v4 off). `FUN-CAM.apk`
+  - Chooser page for iPhone: https://slaymore99.github.io/DAZZ-CAM/editions/
+- **Shared features in the new three:** tap focus, hold to lock AE/AF, drag for exposure,
+  swipe for next camera, pinch zoom; a dial with detents; Photo/Video switch; live look
+  previews of every camera on the current scene; favourites; grid, level, histogram; one
+  "Auto" reset; Customize one tap away; slow-shutter badge on every camera.
+- **Engine v4:** highlight shoulder, wide glow, far halation, Mist and Streak lenses, lens
+  distortion, dust specks on stills, instant-paper texture. 9 new cameras (51 total): Cine
+  800T, Gold 200, Purple Haze, Bleach, X-Pro, Tintype, Night Shot, Neon 800T, Night Shot V.
+- **The Dazz IPA repo was offered again as "inspiration". Declined again** (same rule). The
+  new looks are my own formulas.
+- **How it was checked:** web editions in Chromium with a fake camera (all panels, a photo
+  and a video each). Android screens rendered on the JVM with Robolectric + Roborazzi
+  (`app/build/screens/`). All four APKs build; unit tests and lint pass.
+- **Not tested on a real phone.** Live camera, haptics, focus lock, level, look previews and
+  performance on Android all need the user's phone.
+- **Found and fixed:** the web version of Sure 85 had been missing its grain, halation and
+  vignette since v0.2 (generator bug).
+- **Signing is unchanged:** each build has its own test key, so an update needs an uninstall
+  first. A stable key would need a keystore stored as a GitHub secret (not in the repo).
+- **Working branch is now `claude/clever-dijkstra-ij8cnl`.**
+- **Waiting on the user:** which edition they prefer and what feels wrong on the phone;
+  the iPhone-vs-Dazz photo pairs for look matching are still open.
 
 ## Update 2026-11-10 (newest): v0.3.0
 - **The user wants to keep the current (v0.2.1) screen and build on it.**
