@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FUN CAM Glass">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>FUN CAM · GLASS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="ambient" width="24" height="52"></canvas>
+<div id="app">
+  <header class="top">
+    <button class="glass rnd" id="bFlash" aria-label="Flash"></button>
+    <button class="glass" id="island"><i class="dot"></i><span class="i-name">FUN CAM</span><span class="i-sub"></span></button>
+    <button class="glass rnd" id="bTray" aria-label="Controls"></button>
+  </header>
+  <div id="vfwrap">
+    <div id="vf">
+      <canvas id="gl"></canvas>
+      <svg id="grid"></svg>
+      <div id="level"><i></i></div>
+      <canvas id="hist" width="96" height="36"></canvas>
+      <button class="glass" id="slow"></button>
+      <div id="big"></div>
+      <div id="reticle"><div class="sun"><i></i><b></b></div></div>
+      <div id="blink"></div>
+      <div class="glass" id="zoom"></div>
+    </div>
+  </div>
+  <div id="deck">
+    <div id="looks"></div>
+    <div id="tray">
+      <div id="tools"></div>
+      <div id="dialrow"><span id="dname">Exposure</span><canvas id="dial"></canvas><button id="dval">0.0</button></div>
+    </div>
+  </div>
+  <div class="glass seg2" id="mode"><i></i><button data-m="video">VIDEO</button><button data-m="photo">PHOTO</button></div>
+  <footer class="dock">
+    <button id="thumb" aria-label="Roll"></button>
+    <button id="shutter" aria-label="Shutter"><i></i></button>
+    <button class="glass rnd big" id="bFlip" aria-label="Flip camera"></button>
+  </footer>
+</div>
+<div id="msg" class="glass"></div>
+<div id="start">
+  <div class="orb"></div>
+  <h1>FUN CAM</h1>
+  <p>51 film cameras, live on your lens.</p>
+  <button id="bStart">Open Camera</button>
+  <p class="err" id="startErr"></p>
+</div>
+<script type="module" src="ui.js"></script>
+</body>
+</html>
