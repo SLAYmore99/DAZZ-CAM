@@ -70,13 +70,14 @@ vignette, grain and sharpness. Copying *behaviour* (features, UI flow) is fine; 
 | Classic | the v0.3 UI, **kept as it was** | `FUN-CAM.apk` (`com.funcam.app`) | `/DAZZ-CAM/` |
 
 - **APKs:** https://github.com/SLAYmore99/DAZZ-CAM/releases/tag/latest (rolling, built by CI).
-- **Web chooser:** https://slaymore99.github.io/DAZZ-CAM/editions/
 - **Working branch:** `claude/clever-dijkstra-ij8cnl` (v0.3 lives on `claude/dreamy-gauss-27k7dh`).
   `main` hasn't been merged yet.
-- **The web editions (`/dot/`, `/glass/`, `/field/`, `/editions/`) are NOT deployed yet.** The
-  `github-pages` environment only accepts the old branch, so `web.yml` fails on this one in seconds
-  with no log. The user chose "leave web for later" (2026-11-12). Don't push to the old branch
-  without asking.
+- **Web: only GLASS is published** (`/DAZZ-CAM/glass/`), by the user's choice (2026-11-12). `web.yml`
+  removes `web/dot`, `web/field` and `web/editions` and rewrites `web/published.js` before uploading.
+  To publish another edition later, edit that step.
+- **Pages only deploys from `claude/dreamy-gauss-27k7dh`** (environment rule; on any other branch
+  `web.yml` fails in seconds with no log). To update the site, push the same commits there too
+  (`git push origin HEAD:claude/dreamy-gauss-27k7dh`); the user approved this for the GLASS deploy.
 - **The user has not yet said which edition they prefer.** Ask, then build on that one.
   "Leave the last version as it is" was their instruction: don't change the classic edition.
 

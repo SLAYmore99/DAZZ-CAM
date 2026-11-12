@@ -2,6 +2,7 @@
 // viewfinder gestures and the panels (cameras, lenses, customize, settings, roll). They carry behaviour only;
 // every edition styles them with its own CSS.
 import { CAMERAS, CAT, GELS, FRAMES, LENSES, TWEAKS, ratioLabel, shutterLabel, fmtEv, haptic } from './core.js';
+import { PUBLISHED } from './published.js';
 
 export const $ = (s, el = document) => el.querySelector(s);
 export const h = (tag, props = {}, ...kids) => {
@@ -298,7 +299,7 @@ export function mountPanels(core, edition) {
 
   // ---- settings
   const settings = sheet('sSettings', 'Settings');
-  const editions = [['dot', 'DOT'], ['glass', 'GLASS'], ['field', 'FIELD']];
+  const editions = [['dot', 'DOT'], ['glass', 'GLASS'], ['field', 'FIELD']].filter(([k]) => PUBLISHED.includes(k));
   settings.body.append(
     section('Viewfinder'),
     toggleRow('Grid', 'Rule-of-thirds lines', () => S.grid, v => core.set('grid', v)),

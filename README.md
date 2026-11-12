@@ -14,10 +14,9 @@ icons and code are its own.
 The same camera engine now comes in four separate apps. They install side by side, so you can
 keep all of them and pick the one you like.
 
-> **Web editions are not live yet.** GitHub Pages only accepts deployments from the older branch
-> `claude/dreamy-gauss-27k7dh`, so the three new Safari links below still show the previous site.
-> They go live once the `github-pages` environment allows this branch (Settings → Environments →
-> github-pages) or the work is merged. The APKs are available now.
+> **On the web, only GLASS is published for now** (the owner's choice). The DOT and FIELD Safari
+> links below are not live; their APKs are. The deploy step in `.github/workflows/web.yml` leaves
+> them out, and GitHub Pages deploys from the branch `claude/dreamy-gauss-27k7dh`.
 
 | Edition | What it is | Android APK | iPhone / Safari |
 |---|---|---|---|
@@ -27,7 +26,6 @@ keep all of them and pick the one you like.
 | **Classic** | The v0.3 interface with the camera wheel, kept as it was (original 42 cameras). | `FUN-CAM.apk` | [open](https://slaymore99.github.io/DAZZ-CAM/) |
 
 - **All APKs:** https://github.com/SLAYmore99/DAZZ-CAM/releases/tag/latest
-- **Pick an interface on iPhone:** https://slaymore99.github.io/DAZZ-CAM/editions/
 
 Design references: DOT follows the discipline of Nothing OS (type system, micrographics, one
 accent). GLASS follows the iOS Camera (viewfinder first, progressive disclosure, a tray for

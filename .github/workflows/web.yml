@@ -25,6 +25,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Regenerate looks from the Android sources
         run: python3 tools/gen_web_data.py
+      - name: Publish only the GLASS edition (plus the classic site) for now
+        run: |
+          rm -rf web/dot web/field web/editions
+          echo "export const PUBLISHED = ['glass'];" > web/published.js
       - uses: actions/configure-pages@v5
         with:
           enablement: true

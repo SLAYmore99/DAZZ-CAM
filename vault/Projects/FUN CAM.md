@@ -40,7 +40,6 @@ choice), better filters, an APK and a Safari version for each, and the old versi
     graphite body, keys, LCD, thumbwheel, light-meter needle, orange shutter.
     `FUN-CAM-FIELD.apk`, .../field/
   - **Classic**: the v0.3 interface, untouched (42 cameras, engine v4 off). `FUN-CAM.apk`
-  - Chooser page for iPhone: https://slaymore99.github.io/DAZZ-CAM/editions/
 - **Shared features in the new three:** tap focus, hold to lock AE/AF, drag for exposure,
   swipe for next camera, pinch zoom; a dial with detents; Photo/Video switch; live look
   previews of every camera on the current scene; favourites; grid, level, histogram; one
@@ -60,9 +59,10 @@ choice), better filters, an APK and a Safari version for each, and the old versi
 - **Signing is unchanged:** each build has its own test key, so an update needs an uninstall
   first. A stable key would need a keystore stored as a GitHub secret (not in the repo).
 - **Working branch is now `claude/clever-dijkstra-ij8cnl`.**
-- **Web editions are NOT live yet.** GitHub Pages only deploys from the old branch
-  `claude/dreamy-gauss-27k7dh`. The user chose to leave the web for later. To publish: allow
-  the new branch in Settings → Environments → github-pages, or push/merge to an allowed branch.
+- **Web: only GLASS is published** (the user asked for this later the same day):
+  https://slaymore99.github.io/DAZZ-CAM/glass/ . DOT, FIELD and the chooser page are left out by
+  the deploy step. Pages only deploys from the old branch `claude/dreamy-gauss-27k7dh`, so the
+  same commits are pushed there as well.
 - **Waiting on the user:** which edition they prefer and what feels wrong on the phone;
   the iPhone-vs-Dazz photo pairs for look matching are still open.
 
