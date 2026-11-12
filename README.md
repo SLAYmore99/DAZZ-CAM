@@ -14,6 +14,11 @@ icons and code are its own.
 The same camera engine now comes in four separate apps. They install side by side, so you can
 keep all of them and pick the one you like.
 
+> **Web editions are not live yet.** GitHub Pages only accepts deployments from the older branch
+> `claude/dreamy-gauss-27k7dh`, so the three new Safari links below still show the previous site.
+> They go live once the `github-pages` environment allows this branch (Settings → Environments →
+> github-pages) or the work is merged. The APKs are available now.
+
 | Edition | What it is | Android APK | iPhone / Safari |
 |---|---|---|---|
 | **DOT** | Monochrome, dot-matrix type, one red accent. The camera name is the headline, and the shutter sits in a ring of 28 dots that counts down and pulses. | `FUN-CAM-DOT.apk` | [open](https://slaymore99.github.io/DAZZ-CAM/dot/) |

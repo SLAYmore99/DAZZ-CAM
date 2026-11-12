@@ -60,6 +60,9 @@ choice), better filters, an APK and a Safari version for each, and the old versi
 - **Signing is unchanged:** each build has its own test key, so an update needs an uninstall
   first. A stable key would need a keystore stored as a GitHub secret (not in the repo).
 - **Working branch is now `claude/clever-dijkstra-ij8cnl`.**
+- **Web editions are NOT live yet.** GitHub Pages only deploys from the old branch
+  `claude/dreamy-gauss-27k7dh`. The user chose to leave the web for later. To publish: allow
+  the new branch in Settings → Environments → github-pages, or push/merge to an allowed branch.
 - **Waiting on the user:** which edition they prefer and what feels wrong on the phone;
   the iPhone-vs-Dazz photo pairs for look matching are still open.
 

@@ -73,6 +73,10 @@ vignette, grain and sharpness. Copying *behaviour* (features, UI flow) is fine; 
 - **Web chooser:** https://slaymore99.github.io/DAZZ-CAM/editions/
 - **Working branch:** `claude/clever-dijkstra-ij8cnl` (v0.3 lives on `claude/dreamy-gauss-27k7dh`).
   `main` hasn't been merged yet.
+- **The web editions (`/dot/`, `/glass/`, `/field/`, `/editions/`) are NOT deployed yet.** The
+  `github-pages` environment only accepts the old branch, so `web.yml` fails on this one in seconds
+  with no log. The user chose "leave web for later" (2026-11-12). Don't push to the old branch
+  without asking.
 - **The user has not yet said which edition they prefer.** Ask, then build on that one.
   "Leave the last version as it is" was their instruction: don't change the classic edition.
 
