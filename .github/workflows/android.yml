@@ -23,9 +23,9 @@ jobs:
       - name: Check the web app's looks match the Android sources
         run: python3 tools/gen_web_data.py && git diff --exit-code web/data.js
       - name: Test, lint and build
-        run: ./gradlew testDebugUnitTest lintDebug assembleRelease --no-daemon
+        run: ./gradlew testClassicDebugUnitTest lintClassicDebug assembleRelease --no-daemon
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk FUN-CAM.apk
+        run: cp app/build/outputs/apk/classic/release/app-classic-release.apk FUN-CAM.apk
       - uses: actions/upload-artifact@v4
         with:
           name: FUN-CAM-apk
