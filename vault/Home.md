@@ -17,3 +17,4 @@
 - [[2026-11-10 FUN CAM v0.2 overhaul]]
 - [[2026-11-10 FUN CAM v0.3 wheel + iOS app]]
 - [[2026-11-12 FUN CAM v0.4 three editions]]
+- [[FUN CAM - vault update 2026-11-18]] (one-file summary: state, preferences, learnings)
